@@ -3,12 +3,15 @@ extends CharacterBody3D
 @export var camara: Camera3D
 @export var speed_caminar = 3.0
 @export var speed_correr = 6.0
+@export var tiempo_arranque = 0.25
 @onready var anim = $Modelo/AnimationPlayer
 
 # Enchufes: otros scripts (las acciones del juego) cambian estas tres variables.
 var multiplicador = 1.0     # 1 = rapidez normal, 0.5 = la mitad, 0 = quieto
 var empuje = Vector3.ZERO   # velocidad extra en m/s (dash, retroceso)
 var accion = ""             # animación de la acción; "" = ninguna
+
+var rapidez_actual = 0.0
 
 
 func _ready():
@@ -26,18 +29,20 @@ func _physics_process(delta):
 	var direction = entrada.rotated(Vector3.UP, giro_cam).normalized()
 
 	var corre = Input.is_action_pressed("correr")
-	var speed = speed_correr if corre else speed_caminar
+	var speed_meta = (speed_correr if corre else speed_caminar) if direction.length() > 0 else 0.0
+	var paso = (speed_correr / tiempo_arranque) * delta
+	rapidez_actual = move_toward(rapidez_actual, speed_meta, paso)
 
-	velocity.x = direction.x * speed * multiplicador + empuje.x
-	velocity.z = direction.z * speed * multiplicador + empuje.z
+	velocity.x = direction.x * rapidez_actual * multiplicador + empuje.x
+	velocity.z = direction.z * rapidez_actual * multiplicador + empuje.z
 
 	if direction.length() > 0:
 		basis = Basis.looking_at(direction)
 	if accion != "":
 		anim.play(accion)
-	elif direction.length() > 0 and corre:
+	elif rapidez_actual > 0.1 and corre:
 		anim.play("sprint")
-	elif direction.length() > 0:
+	elif rapidez_actual > 0.1:
 		anim.play("walk")
 	else:
 		anim.play("idle")
