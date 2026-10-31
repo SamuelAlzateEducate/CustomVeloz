@@ -6,6 +6,11 @@ extends CharacterBody3D
 @export var tiempo_arranque = 0.25
 @onready var anim = $Modelo/AnimationPlayer
 
+enum Estado { QUIETO, CAMINAR, CORRER, AIRE }
+@export var estado = Estado.QUIETO
+const RUIDO = [0, 2, 6, 0]
+@export var ruido = 0.0
+
 # Enchufes: otros scripts (las acciones del juego) cambian estas tres variables.
 var multiplicador = 1.0     # 1 = rapidez normal, 0.5 = la mitad, 0 = quieto
 var empuje = Vector3.ZERO   # velocidad extra en m/s (dash, retroceso)
@@ -35,6 +40,17 @@ func _physics_process(delta):
 
 	velocity.x = direction.x * rapidez_actual * multiplicador + empuje.x
 	velocity.z = direction.z * rapidez_actual * multiplicador + empuje.z
+
+	if not is_on_floor():
+		estado = Estado.AIRE
+	elif rapidez_actual < 0.1:
+		estado = Estado.QUIETO
+	elif corre:
+		estado = Estado.CORRER
+	else:
+		estado = Estado.CAMINAR
+
+	ruido = RUIDO[estado]
 
 	if direction.length() > 0:
 		basis = Basis.looking_at(direction)
