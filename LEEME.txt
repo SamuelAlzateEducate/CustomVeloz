@@ -1,0 +1,5 @@
+Inicio del juego 3D — plantilla para el juego del equipo (Corte 2).
+Es el estado al final de la demo de la Sesión 7: el personaje de Kenney (Mini Characters, CC0)
+camina relativo a la cámara con idle y walk. Trae tres enchufes para las acciones
+(multiplicador, empuje y accion) y la prueba automática del Inspector. Escena: main.tscn.
+Otros personajes para enemigos o NPC: carpeta personaje/.
