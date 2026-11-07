@@ -2,7 +2,7 @@ class_name CicloDia
 extends Node
 
 var hora: float = 6.0
-var duracion_dia: float = 48.0
+var duracion_dia: float = 12.0
 var pausado: bool = false
 
 func avanzar(dt: float) -> void:

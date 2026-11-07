@@ -15,6 +15,9 @@ func _ready() -> void:
 		sol = get_node_or_null("../DirectionalLight3D")
 	if not entorno:
 		entorno = get_node_or_null("../WorldEnvironment")
+	
+	# Prueba de la señal en consola (puedes borrar o comentar esta línea después de probar)
+	cambio_noche.connect(func(n): print("noche: ", n, " a las ", snappedf(ciclo.hora, 0.1)))
 
 func _process(delta: float) -> void:
 	ciclo.avanzar(delta)
