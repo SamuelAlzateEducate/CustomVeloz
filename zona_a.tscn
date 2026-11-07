@@ -1,17 +1,10 @@
 [gd_scene format=3 uid="uid://h24dlci7t2hg"]
 
-[ext_resource type="Script" uid="uid://c4ncpqjuna8wv" path="res://camara_sigue.gd" id="1_h2yge"]
-[ext_resource type="Script" uid="uid://cchv43eug6720" path="res://personaje.gd" id="1_pj"]
-[ext_resource type="PackedScene" uid="uid://bkmexfnojlmxi" path="res://personaje/character-male-a.glb" id="2_modelo"]
-
-[sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
-
-[sub_resource type="Sky" id="Cielo"]
-sky_material = SubResource("CieloMat")
-
-[sub_resource type="Environment" id="Entorno"]
-background_mode = 2
-sky = SubResource("Cielo")
+[ext_resource type="Script" uid="uid://c4ncpqjuna8wv" path="res://camara_sigue.gd" id="1_fntjl"]
+[ext_resource type="Script" uid="uid://cchv43eug6720" path="res://personaje.gd" id="2_e2n66"]
+[ext_resource type="PackedScene" uid="uid://bkmexfnojlmxi" path="res://personaje/character-male-a.glb" id="3_57wwi"]
+[ext_resource type="Script" uid="uid://cy80y0cs687eh" path="res://sistema_sol.gd" id="4_57wwi"]
+[ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="5_o0wp1"]
 
 [sub_resource type="PlaneMesh" id="PisoMalla"]
 size = Vector2(30, 30)
@@ -30,14 +23,16 @@ albedo_color = Color(0.85, 0.55, 0.25, 1)
 radius = 0.35
 height = 1.75
 
-[node name="Main" type="Node3D" unique_id=1020709897]
+[sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=474579229]
-environment = SubResource("Entorno")
+[sub_resource type="Sky" id="Cielo"]
+sky_material = SubResource("CieloMat")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=729115647]
-transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 6, 0)
-shadow_enabled = true
+[sub_resource type="Environment" id="Entorno"]
+background_mode = 2
+sky = SubResource("Cielo")
+
+[node name="zona_a" type="Node3D" unique_id=1020709897]
 
 [node name="Suelo" type="StaticBody3D" parent="." unique_id=2140745719]
 
@@ -82,11 +77,11 @@ shape = SubResource("CajaForma")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=2136565634 node_paths=PackedStringArray("objetivo")]
 transform = Transform3D(1, 0, 0, 0, 0.819152, 0.573576, 0, -0.573576, 0.819152, 0, 5, 7)
-script = ExtResource("1_h2yge")
+script = ExtResource("1_fntjl")
 objetivo = NodePath("../Personaje")
 
 [node name="Personaje" type="CharacterBody3D" parent="." unique_id=1227001545 node_paths=PackedStringArray("camara")]
-script = ExtResource("1_pj")
+script = ExtResource("2_e2n66")
 camara = NodePath("../Camera3D")
 estado = 1
 prueba = 1
@@ -96,5 +91,18 @@ accion_prueba = "correr"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
 shape = SubResource("Capsula")
 
-[node name="Modelo" parent="Personaje" unique_id=885123629 instance=ExtResource("2_modelo")]
+[node name="Modelo" parent="Personaje" unique_id=885123629 instance=ExtResource("3_57wwi")]
 transform = Transform3D(-2.6, 0, 0, 0, 2.6, 0, 0, 0, -2.6, 0, 0, 0)
+
+[node name="SistemaSol" type="Node3D" parent="." unique_id=1770138885]
+script = ExtResource("4_57wwi")
+
+[node name="CicloDia" type="Node3D" parent="SistemaSol" unique_id=1843802504]
+script = ExtResource("5_o0wp1")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=474579229]
+environment = SubResource("Entorno")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=729115647]
+transform = Transform3D(0.8660253, -0.35355338, 0.3535538, 0, 0.70710725, 0.7071064, -0.50000024, -0.612372, 0.6123727, 0, 6, 0)
+shadow_enabled = true
