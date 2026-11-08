@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://mainscene001"]
 
 [ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="1_personaje"]
+[ext_resource type="PackedScene" path="res://rival.tscn" id="2_rival"]
 
 [sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
 
@@ -43,3 +44,6 @@ current = true
 
 [node name="Personaje" parent="." groups=["jugador"] instance=ExtResource("1_personaje")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+
+[node name="Rival" parent="." instance=ExtResource("2_rival")]
+
