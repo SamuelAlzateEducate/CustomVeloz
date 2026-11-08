@@ -1,0 +1,8 @@
+# Godot 4+ cache and internal editor files
+.godot/
+
+# Addons and automation tools
+addons/
+
+# Temporary draft scenes
+node_3d.tscn
