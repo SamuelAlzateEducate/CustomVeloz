@@ -1,6 +1,12 @@
 # Godot 4+ cache and internal editor files
 .godot/
 
+# Godot UID cache files (autogenerados)
+*.uid
+
+# Godot import metadata for assets
+*.import
+
 # Addons and automation tools
 addons/
 
