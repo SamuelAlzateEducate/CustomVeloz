@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://bss3wrijjf7fg"]
+
+[ext_resource type="Script" uid="uid://cchv43eug6720" path="res://personaje.gd" id="1_ltgau"]
+[ext_resource type="PackedScene" uid="uid://bkmexfnojlmxi" path="res://personaje/character-male-a.glb" id="2_yppqc"]
+[ext_resource type="Script" path="res://nitro.gd" id="3_nitro"]
+
+[sub_resource type="CapsuleShape3D" id="Capsula"]
+radius = 0.35
+height = 1.75
+
+[node name="Personaje" type="CharacterBody3D" unique_id=2064895015]
+script = ExtResource("1_ltgau")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1553416075]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("Capsula")
+
+[node name="Modelo" parent="." unique_id=1138058297 instance=ExtResource("2_yppqc")]
+transform = Transform3D(-2.6, 0, 0, 0, 2.6, 0, 0, 0, -2.6, 0, 0, 0)
+
+[node name="LuzNitro" type="SpotLight3D" parent="." unique_id=1942017732]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.6)
+light_color = Color(1, 0.91764706, 0, 1)
+light_energy = 0.0
+spot_range = 8.0
+spot_attenuation = 1.0
+spot_angle = 35.0
+
+[node name="Nitro" type="Node" parent="." unique_id=1942017731 node_paths=PackedStringArray("luz")]
+script = ExtResource("3_nitro")
+luz = NodePath("../LuzNitro")

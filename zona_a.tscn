@@ -1,37 +1,67 @@
 [gd_scene format=3 uid="uid://h24dlci7t2hg"]
 
 [ext_resource type="Script" uid="uid://c4ncpqjuna8wv" path="res://camara_sigue.gd" id="1_fntjl"]
-[ext_resource type="Script" uid="uid://cchv43eug6720" path="res://personaje.gd" id="2_e2n66"]
-[ext_resource type="PackedScene" uid="uid://bkmexfnojlmxi" path="res://personaje/character-male-a.glb" id="3_57wwi"]
+[ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="2_57wwi"]
 [ext_resource type="Script" uid="uid://cy80y0cs687eh" path="res://sistema_sol.gd" id="4_57wwi"]
 [ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="5_o0wp1"]
 [ext_resource type="Script" uid="uid://cgjsgybs03e66" path="res://fotometro.gd" id="6_o0wp1"]
 
+[sub_resource type="StandardMaterial3D" id="PisoMat"]
+albedo_color = Color(0.149, 0.196, 0.22, 1)
+
 [sub_resource type="PlaneMesh" id="PisoMalla"]
+material = SubResource("PisoMat")
 size = Vector2(30, 30)
 
 [sub_resource type="BoxShape3D" id="PisoForma"]
 size = Vector3(30, 0.2, 30)
 
-[sub_resource type="BoxMesh" id="CajaMalla"]
+[sub_resource type="StandardMaterial3D" id="BordeMat"]
+albedo_color = Color(0, 0.898, 1, 1)
+emission_enabled = true
+emission = Color(0, 0.898, 1, 1)
+emission_energy_multiplier = 1.5
 
-[sub_resource type="StandardMaterial3D" id="CajaMat"]
-albedo_color = Color(0.85, 0.55, 0.25, 1)
+[sub_resource type="BoxMesh" id="BordeMalla"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 28)
 
-[sub_resource type="BoxShape3D" id="CajaForma"]
+[sub_resource type="BoxShape3D" id="BordeForma"]
+size = Vector3(0.4, 0.8, 28)
 
-[sub_resource type="CapsuleShape3D" id="Capsula"]
-radius = 0.35
-height = 1.75
+[sub_resource type="StandardMaterial3D" id="EsferaMat"]
+albedo_color = Color(0.4627451, 1, 0.011764706, 1)
+emission_enabled = true
+emission = Color(0.4627451, 1, 0.011764706, 1)
+emission_energy_multiplier = 1.0
+
+[sub_resource type="StandardMaterial3D" id="EsferaAtaqueMat"]
+albedo_color = Color(1, 0.91764706, 0, 1)
+emission_enabled = true
+emission = Color(1, 0.91764706, 0, 1)
+emission_energy_multiplier = 1.0
+
+[sub_resource type="SphereMesh" id="EsferaMalla"]
+material = SubResource("EsferaMat")
+radius = 0.4
+height = 0.8
+
+[sub_resource type="SphereMesh" id="EsferaAtaqueMalla"]
+material = SubResource("EsferaAtaqueMat")
+radius = 0.4
+height = 0.8
 
 [sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
 
-[sub_resource type="Sky" id="Cielo"]
+[sub_resource type="Sky" id="Sky_57wwi"]
 sky_material = SubResource("CieloMat")
 
 [sub_resource type="Environment" id="Entorno"]
 background_mode = 2
-sky = SubResource("Cielo")
+sky = SubResource("Sky_57wwi")
+ambient_light_source = 2
+ambient_light_color = Color(0.149, 0.196, 0.22, 1)
+tonemap_mode = 2
 
 [node name="zona_a" type="Node3D" unique_id=1020709897]
 
@@ -44,56 +74,57 @@ mesh = SubResource("PisoMalla")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
 shape = SubResource("PisoForma")
 
-[node name="Cajas" type="Node3D" parent="." unique_id=305696087]
+[node name="Bordes" type="Node3D" parent="." unique_id=305696087]
 
-[node name="Caja1" type="StaticBody3D" parent="Cajas" unique_id=1135858989]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.5, -4)
+[node name="BordeIzq" type="StaticBody3D" parent="Bordes" unique_id=1135858989]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.4, 0)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Cajas/Caja1" unique_id=1700903562]
-mesh = SubResource("CajaMalla")
-surface_material_override/0 = SubResource("CajaMat")
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeIzq" unique_id=1700903562]
+mesh = SubResource("BordeMalla")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Cajas/Caja1" unique_id=1602615984]
-shape = SubResource("CajaForma")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeIzq" unique_id=1602615984]
+shape = SubResource("BordeForma")
 
-[node name="Caja2" type="StaticBody3D" parent="Cajas" unique_id=864048290]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.5, -2)
+[node name="BordeDer" type="StaticBody3D" parent="Bordes" unique_id=864048290]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.4, 0)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Cajas/Caja2" unique_id=65848392]
-mesh = SubResource("CajaMalla")
-surface_material_override/0 = SubResource("CajaMat")
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeDer" unique_id=65848392]
+mesh = SubResource("BordeMalla")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Cajas/Caja2" unique_id=421885247]
-shape = SubResource("CajaForma")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeDer" unique_id=421885247]
+shape = SubResource("BordeForma")
 
-[node name="Caja3" type="StaticBody3D" parent="Cajas" unique_id=769031680]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.5, 3)
+[node name="Esferas" type="Node3D" parent="." unique_id=769031680]
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Cajas/Caja3" unique_id=819781426]
-mesh = SubResource("CajaMalla")
-surface_material_override/0 = SubResource("CajaMat")
+[node name="Esfera1" type="MeshInstance3D" parent="Esferas" unique_id=819781426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, 4)
+mesh = SubResource("EsferaMalla")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Cajas/Caja3" unique_id=339499925]
-shape = SubResource("CajaForma")
+[node name="Esfera2" type="MeshInstance3D" parent="Esferas" unique_id=339499925]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, 0)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera3" type="MeshInstance3D" parent="Esferas" unique_id=339499926]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, -4)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera4" type="MeshInstance3D" parent="Esferas" unique_id=339499927]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, -8)
+mesh = SubResource("EsferaMalla")
+
+[node name="EsferaAtaque" type="MeshInstance3D" parent="Esferas" unique_id=339499928]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -11)
+mesh = SubResource("EsferaAtaqueMalla")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=2136565634 node_paths=PackedStringArray("objetivo")]
 transform = Transform3D(1, 0, 0, 0, 0.819152, 0.573576, 0, -0.573576, 0.819152, 0, 5, 7)
+current = true
 script = ExtResource("1_fntjl")
 objetivo = NodePath("../Personaje")
+suavizado = 8.0
 
-[node name="Personaje" type="CharacterBody3D" parent="." unique_id=1227001545 node_paths=PackedStringArray("camara")]
-script = ExtResource("2_e2n66")
-camara = NodePath("../Camera3D")
-estado = 1
-prueba = 1
-accion_prueba = "correr"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Personaje" unique_id=869165660]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
-shape = SubResource("Capsula")
-
-[node name="Modelo" parent="Personaje" unique_id=885123629 instance=ExtResource("3_57wwi")]
-transform = Transform3D(-2.6, 0, 0, 0, 2.6, 0, 0, 0, -2.6, 0, 0, 0)
+[node name="Personaje" parent="." unique_id=2064895015 instance=ExtResource("2_57wwi")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
 
 [node name="SistemaSol" type="Node3D" parent="." unique_id=1770138885 node_paths=PackedStringArray("sol", "entorno")]
 script = ExtResource("4_57wwi")
@@ -102,6 +133,8 @@ entorno = NodePath("WorldEnvironment")
 
 [node name="CicloDia" type="Node3D" parent="SistemaSol" unique_id=1843802504]
 script = ExtResource("5_o0wp1")
+hora = 17.0
+pausado = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=474579229]
 environment = SubResource("Entorno")

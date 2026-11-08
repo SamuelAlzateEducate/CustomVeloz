@@ -1,179 +1,190 @@
 extends CharacterBody3D
 
+# ---- Nivel 3: estados con un número cada uno (CustomVeloz) ----
+enum Estado { QUIETO, ANDANDO, NITRO }
+# El número de cada estado es su rapidez máxima en km/h, en el orden del enum
+const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
+
+# ---- Nivel 1 y 2: rapidez y arranque (números del juego, ver tabla del Taller 7) ----
 @export var camara: Camera3D
-@export var speed_caminar = 3.0
-@export var speed_correr = 6.0
-@export var tiempo_arranque = 0.25
-@onready var anim = $Modelo/AnimationPlayer
+@export var speed_caminar = 25.0 # 90 km/h ÷ 3.6 = 25 m/s (rapidez máxima de base)
+@export var speed_correr = 33.33 # 120 km/h ÷ 3.6 = 33.33 m/s (con nitro, tecla Shift)
+@export var tiempo_arranque = 3.0 # s en llegar a la rapidez máxima
 
-enum Estado { QUIETO, CAMINAR, CORRER, AIRE }
-@export var estado = Estado.QUIETO
-const RUIDO = [0, 2, 6, 0]
-@export var ruido = 0.0
+@export var estado := Estado.QUIETO
 
-# Enchufes: otros scripts (las acciones del juego) cambian estas tres variables.
-var multiplicador = 1.0     # 1 = rapidez normal, 0.5 = la mitad, 0 = quieto
-var empuje = Vector3.ZERO   # velocidad extra en m/s (dash, retroceso)
-var accion = ""             # animación de la acción; "" = ninguna
+@export_enum("Ninguna", "Avanzar 60 cuadros", "Avanzar 60 y soltar", "Avanzar y la acción desde el cuadro 30", "Mantener la acción 2 s", "Avanzar con la acción 60 cuadros", "Diagonal W+D 60 cuadros") var prueba: String = "Ninguna"
+@export var accion_prueba = ""
 
-var rapidez_actual = 0.0
+# Los tres enchufes (otros scripts los cambian; no se borran)
+var multiplicador = 1.0 # 1 = normal, 0.5 = mitad, 0 = quieto
+var empuje = Vector3.ZERO # m/s que se suman (dash, retroceso)
+var accion = "" # nombre de una animación que pisa idle/walk
 
+var avance = Vector3.ZERO # la parte de la velocidad que dan las teclas
+var nitro_ok = true # lo pone el nodo Nitro: false si no queda carga
+var corre = false # true mientras Shift está presionada y hay nitro
+var kmh = 0.0 # rapidez máxima del estado actual
+
+@onready var anim = get_node_or_null("Modelo/AnimationPlayer")
 
 func _ready():
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
-
+	if prueba != "Ninguna":
+		_aplicar_prueba(1)
 
 func _physics_process(delta):
 	velocity += get_gravity() * delta
-
-	var input_dir = Input.get_vector("move_left", "move_right",
-		"move_up", "move_down")
+	
+	if camara == null:
+		camara = get_viewport().get_camera_3d()
+	
+	var input_dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var entrada = Vector3(input_dir.x, 0.0, input_dir.y)
-	var giro_cam = camara.global_rotation.y
+	
+	# La entrada se gira solo con el giro horizontal de la cámara
+	var giro_cam = camara.global_rotation.y if camara else 0.0
 	var direction = entrada.rotated(Vector3.UP, giro_cam).normalized()
-
-	var corre = Input.is_action_pressed("correr")
-	var speed_meta = (speed_correr if corre else speed_caminar) if direction.length() > 0 else 0.0
-	var paso = (speed_correr / tiempo_arranque) * delta
-	rapidez_actual = move_toward(rapidez_actual, speed_meta, paso)
-
-	velocity.x = direction.x * rapidez_actual * multiplicador + empuje.x
-	velocity.z = direction.z * rapidez_actual * multiplicador + empuje.z
-
-	if not is_on_floor():
-		estado = Estado.AIRE
-	elif rapidez_actual < 0.1:
-		estado = Estado.QUIETO
-	elif corre:
-		estado = Estado.CORRER
-	else:
-		estado = Estado.CAMINAR
-
-	ruido = RUIDO[estado]
-
+	
+	corre = Input.is_action_pressed("correr") and nitro_ok
+	var speed = speed_correr if corre else speed_caminar
+	
+	# Arranque y frenado suaves
+	var objetivo = direction * speed * multiplicador
+	var paso = speed / maxf(tiempo_arranque, 0.05) * delta
+	avance = avance.move_toward(objetivo, paso)
+	
+	velocity.x = avance.x + empuje.x
+	velocity.z = avance.z + empuje.z
+	
 	if direction.length() > 0:
 		basis = Basis.looking_at(direction)
-	if accion != "":
-		anim.play(accion)
-	elif rapidez_actual > 0.1 and corre:
-		anim.play("sprint")
-	elif rapidez_actual > 0.1:
-		anim.play("walk")
-	else:
-		anim.play("idle")
-
+	
 	move_and_slide()
+	
+	var antes = estado
+	estado = elegir_estado()
+	kmh = VELOCIDAD_KMH[estado]
+	if estado != antes:
+		print("estado ", Estado.keys()[estado], " · rapidez máxima ", kmh, " km/h = ", snappedf(kmh / 3.6, 0.01), " m/s")
+		animar()
+	
 	_prueba()
 
+func elegir_estado():
+	var rapidez = Vector2(velocity.x, velocity.z).length()
+	if rapidez < 0.1:
+		return Estado.QUIETO
+	if rapidez > speed_caminar + 0.1:
+		return Estado.NITRO
+	return Estado.ANDANDO
 
-# ---------------------------------------------------------------------------
-# PRUEBAS AUTOMÁTICAS. No hace falta entender esta parte: en el Inspector del
-# Personaje elijan "Prueba" (y, si la prueba usa una acción, escriban su nombre
-# en "Accion Prueba"). Con F5 el personaje se mueve solo y escribe los números
-# en el panel Output. La última línea de _physics_process() es _prueba().
-# ---------------------------------------------------------------------------
-@export_enum("Ninguna", "Avanzar 60 cuadros", "Avanzar 60 y soltar", "Avanzar y la acción desde el cuadro 30", "Mantener la acción 2 s", "Avanzar con la acción 60 cuadros", "Diagonal W+D 60 cuadros") var prueba = 0
-@export var accion_prueba = ""
+func animar():
+	if accion != "":
+		_reproducir(accion)
+		return
+	match estado:
+		Estado.QUIETO:
+			_reproducir("idle")
+		Estado.ANDANDO:
+			_reproducir("walk")
+		Estado.NITRO:
+			_reproducir("sprint")
+
+func _reproducir(nombre):
+	if anim and anim.has_animation(nombre):
+		anim.play(nombre)
+
+# ---------------- Prueba automática ----------------
 var _cuadro = 0
-var _termino = false
-var _y_max = 0.0
-var _cuadro_max = 0
+var _terminada = false
+var _estados_previos = {}
 
+func _plan(f):
+	# devuelve [w, d, accion, total] para el cuadro f
+	match prueba:
+		"Avanzar 60 cuadros":
+			return [f <= 60, false, false, 60]
+		"Avanzar 60 y soltar":
+			return [f <= 60, false, false, 90]
+		"Avanzar y la acción desde el cuadro 30":
+			return [f <= 90, false, f >= 31, 90]
+		"Mantener la acción 2 s":
+			return [false, false, f <= 120, 120]
+		"Avanzar con la acción 60 cuadros":
+			return [f <= 60, false, f <= 60, 60]
+		"Diagonal W+D 60 cuadros":
+			return [f <= 60, f <= 60, false, 60]
+	return [false, false, false, 0]
+
+func _set_accion(nombre, presionada):
+	if nombre == "" or not InputMap.has_action(nombre):
+		return
+	if presionada:
+		Input.action_press(nombre)
+	else:
+		Input.action_release(nombre)
+
+func _aplicar_prueba(f):
+	var p = _plan(f)
+	_set_accion("move_up", p[0])
+	_set_accion("move_right", p[1])
+	_set_accion(accion_prueba, p[2])
+
+func _nombre_estado(nodo, valor):
+	if nodo == self:
+		return Estado.keys()[valor]
+	var scr = nodo.get_script()
+	if scr:
+		var mapa = scr.get_script_constant_map()
+		if mapa.has("Estado"):
+			var clave = mapa["Estado"].find_key(valor)
+			if clave != null:
+				return clave
+	return str(valor)
 
 func _prueba():
-	if prueba == 0 or _termino:
+	if prueba == "Ninguna":
+		_cuadro = 0
+		_terminada = false
+		_estados_previos.clear()
 		return
+	if _terminada:
+		return
+	
+	if _cuadro == 0:
+		if prueba.contains("acción") and accion_prueba == "":
+			print("[prueba] escriban el nombre de la acción en 'Accion Prueba'")
+		elif accion_prueba != "" and not InputMap.has_action(accion_prueba):
+			print("[prueba] falta la acción '", accion_prueba, "' en el Input Map")
+	
 	_cuadro += 1
-	var avanzar = "move_up"
-	var lado = "move_right"
-	if _cuadro == 1:
-		if prueba <= 3 or prueba == 5:
-			_apretar(avanzar)
-		if prueba == 4 or prueba == 5:
-			_apretar(accion_prueba)
-		if prueba == 6:
-			_apretar(avanzar)
-			_apretar(lado)
-		return
-	var n = _cuadro - 1
-	if prueba == 3 and n == 30:
-		_apretar(accion_prueba)
-	if prueba == 2 and n == 60:
-		Input.action_release(avanzar)
-	var marcas = []
-	if prueba == 1 or prueba == 5:
-		marcas = [1, 2, 3, 5, 10, 15, 20, 30, 60]
-	elif prueba == 2:
-		marcas = [59, 60, 61, 62, 63, 65, 70, 80, 90]
-	elif prueba == 3:
-		marcas = [29, 30, 31, 32, 33, 35, 40, 45, 50, 60, 75, 90]
-	elif prueba == 6:
-		marcas = [1, 30, 60]
+	var total = _plan(_cuadro)[3]
+	
+	# cambios de estado (del Personaje y de sus nodos hijos que tengan 'estado')
+	var nodos = [self]
+	nodos.append_array(get_children())
+	for n in nodos:
+		if "estado" in n:
+			var previo = _estados_previos.get(n.name, null)
+			if previo != null and previo != n.estado:
+				print("[prueba] cuadro ", _cuadro, ": ", n.name, ".estado cambia a ", _nombre_estado(n, n.estado))
+			_estados_previos[n.name] = n.estado
+	
+	var mostrar = [1, 2, 3, 5, 10, 15, 20, 30, 31, 32, 35, 40, 45, 50, 59, 60, 61, 62, 65, 70, 75, 80, 90, 120]
+	if _cuadro in mostrar or _cuadro == total:
+		var rapidez = Vector2(velocity.x, velocity.z).length()
+		var p = global_position
+		var nombre_anim = anim.current_animation if anim else "-"
+		print("[prueba] cuadro ", _cuadro, ": posición (", snappedf(p.x, 0.01), ", ", snappedf(p.y, 0.01), ", ", snappedf(p.z, 0.01),
+			") · rapidez ", snappedf(rapidez, 0.01), " · y ", snappedf(p.y, 0.01), " · animación ", nombre_anim, " · Personaje.estado ", Estado.keys()[estado])
+	
+	if _cuadro >= total:
+		_set_accion("move_up", false)
+		_set_accion("move_right", false)
+		_set_accion(accion_prueba, false)
+		print("[prueba] fin. Dejen Prueba en Ninguna.")
+		_terminada = true
 	else:
-		marcas = [1, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
-	if n in marcas:
-		print("[prueba] cuadro ", n, ": ", _resumen())
-	_cambios(n)
-	if global_position.y > _y_max + 0.0001:
-		_y_max = global_position.y
-		_cuadro_max = n
-	if n == marcas[-1]:
-		Input.action_release(avanzar)
-		Input.action_release(lado)
-		_soltar(accion_prueba)
-		_termino = true
-		if _y_max > 0.01:
-			print("[prueba] altura máxima ", snappedf(_y_max, 0.01), " en el cuadro ", _cuadro_max)
-
-
-func _resumen():
-	var t = "posición " + str(global_position.snappedf(0.01))
-	t += " · rapidez " + str(snappedf(Vector2(velocity.x, velocity.z).length(), 0.01))
-	t += " · y " + str(snappedf(global_position.y, 0.01))
-	t += " · animación " + str(anim.current_animation)
-	for nodo in _con_estado():
-		t += " · " + str(nodo.name) + ".estado " + _nombre(nodo)
-	return t
-
-
-# Escribe el cuadro exacto en el que cambia cualquier variable "estado".
-var _antes = {}
-
-
-func _cambios(n):
-	for nodo in _con_estado():
-		var e = _nombre(nodo)
-		if _antes.has(nodo) and _antes[nodo] != e:
-			print("[prueba] cuadro ", n, ": ", nodo.name, ".estado cambia a ", e)
-		_antes[nodo] = e
-
-
-func _con_estado():
-	var lista = []
-	for nodo in [self] + get_children() + get_tree().get_nodes_in_group("probar"):
-		if nodo.get_script() != null and "estado" in nodo:
-			lista.append(nodo)
-	return lista
-
-
-func _nombre(nodo):
-	var nombres = nodo.get_script().get_script_constant_map().get("Estado", {})
-	for k in nombres:
-		if nombres[k] == nodo.estado:
-			return k
-	return str(nodo.estado)
-
-
-func _apretar(a):
-	if a == "":
-		print("[prueba] escriban el nombre de la acción en 'Accion Prueba'")
-	elif not InputMap.has_action(a):
-		print("[prueba] falta la acción '", a, "' en el Input Map")
-	else:
-		Input.action_press(a)
-
-
-func _soltar(a):
-	if a != "" and InputMap.has_action(a):
-		Input.action_release(a)
+		_aplicar_prueba(_cuadro + 1)

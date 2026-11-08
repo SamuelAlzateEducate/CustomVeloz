@@ -1,5 +1,6 @@
 extends Node
 
+@export var activo := false # marcar solo mientras se mide; apagado, la zona se ve normal
 @export var sistema: SistemaSol
 @export var camara: Camera3D
 @export var superficie: MeshInstance3D
@@ -10,6 +11,9 @@ var i := 0
 var espera := 0
 
 func _ready() -> void:
+	if not activo:
+		set_process(false)
+		return
 	var env = sistema.entorno.environment
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color.BLACK

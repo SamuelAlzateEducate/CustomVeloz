@@ -1,0 +1,92 @@
+[gd_scene format=3 uid="uid://biyljgujvggl4"]
+
+[ext_resource type="Script" uid="uid://dfube0o7q837r" path="res://luz_parpadeante.gd" id="1_pjwgy"]
+[ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="2_7ursy"]
+[ext_resource type="Script" uid="uid://cy80y0cs687eh" path="res://sistema_sol.gd" id="3_kbk0x"]
+[ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="4_k8i2i"]
+[ext_resource type="Script" uid="uid://c4ncpqjuna8wv" path="res://camara_sigue.gd" id="5_cam"]
+[ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="6_per"]
+[ext_resource type="Script" uid="uid://trmrpqy6hvqt" path="res://disparador.gd" id="7_dis"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7ursy"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_dbxaw"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dbxaw"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_xgqsf"]
+
+[sub_resource type="Sky" id="Cielo"]
+sky_material = SubResource("ProceduralSkyMaterial_xgqsf")
+
+[sub_resource type="Environment" id="Environment_ltrp7"]
+background_mode = 2
+sky = SubResource("Cielo")
+
+[node name="zona_b" type="Node3D" unique_id=1314192710]
+
+[node name="Suelo" type="StaticBody3D" parent="." unique_id=1544648148]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Suelo" unique_id=1539576698]
+transform = Transform3D(12, 0, 0, 0, 0.2, 0, 0, 0, 12, 0, -0.1, 0)
+shape = SubResource("BoxShape3D_7ursy")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Suelo/CollisionShape3D" unique_id=1431454399]
+mesh = SubResource("BoxMesh_dbxaw")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1811150233 node_paths=PackedStringArray("objetivo")]
+transform = Transform3D(1, 0, 0, 0, 0.832, 0.5547, 0, -0.5547, 0.832, 0, 4, 6)
+current = true
+script = ExtResource("5_cam")
+objetivo = NodePath("../Personaje")
+limite_min = Vector2(-5, -5)
+limite_max = Vector2(5, 5)
+
+[node name="Personaje" parent="." unique_id=1811150240 instance=ExtResource("6_per")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+speed_caminar = 3.0
+speed_correr = 6.0
+tiempo_arranque = 0.25
+
+[node name="LuzParpadeante" type="OmniLight3D" parent="." unique_id=433480921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+light_color = Color(0, 0.8980392, 1, 1)
+shadow_enabled = true
+omni_range = 8.0
+omni_attenuation = 2.0
+script = ExtResource("1_pjwgy")
+energia_base = 3.0
+amplitud = 0.25
+
+[node name="Disparador" type="Area3D" parent="." unique_id=715415255]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.5, 0)
+collision_mask = 9
+script = ExtResource("7_dis")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Disparador" unique_id=1520903370]
+shape = SubResource("BoxShape3D_dbxaw")
+
+[node name="LuzEvento" type="OmniLight3D" parent="." unique_id=154399098]
+light_color = Color(0.4627451, 1, 0.011764706, 1)
+light_energy = 0.0
+omni_range = 4.0
+omni_attenuation = 2.0
+
+[node name="SistemaEventos" type="Node3D" parent="." unique_id=1344539699 node_paths=PackedStringArray("luz_evento")]
+script = ExtResource("2_7ursy")
+luz_evento = NodePath("../LuzEvento")
+
+[node name="SistemaSol" type="Node3D" parent="." unique_id=2090967168 node_paths=PackedStringArray("sol", "entorno")]
+script = ExtResource("3_kbk0x")
+sol = NodePath("DirectionalLight3D")
+entorno = NodePath("WorldEnvironment")
+
+[node name="CicloDia" type="Node3D" parent="SistemaSol" unique_id=441241746]
+script = ExtResource("4_k8i2i")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=1588722766]
+environment = SubResource("Environment_ltrp7")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=1989811476]
+transform = Transform3D(0.8660253, -0.35355338, 0.3535538, 0, 0.70710725, 0.7071064, -0.50000024, -0.612372, 0.6123727, 0, 6, 0)
+shadow_enabled = true
