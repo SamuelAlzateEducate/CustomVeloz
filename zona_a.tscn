@@ -123,7 +123,7 @@ script = ExtResource("1_fntjl")
 objetivo = NodePath("../Personaje")
 suavizado = 8.0
 
-[node name="Personaje" parent="." unique_id=2064895015 instance=ExtResource("2_57wwi")]
+[node name="Personaje" parent="." unique_id=2064895015 groups=["jugador"] instance=ExtResource("2_57wwi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
 
 [node name="SistemaSol" type="Node3D" parent="." unique_id=1770138885 node_paths=PackedStringArray("sol", "entorno")]

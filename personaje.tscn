@@ -8,7 +8,7 @@
 radius = 0.35
 height = 1.75
 
-[node name="Personaje" type="CharacterBody3D" unique_id=2064895015]
+[node name="Personaje" type="CharacterBody3D" unique_id=2064895015 groups=["jugador"]]
 script = ExtResource("1_ltgau")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1553416075]
