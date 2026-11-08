@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://bkmexfnojlmxi" path="res://personaje/character-male-a.glb" id="3_57wwi"]
 [ext_resource type="Script" uid="uid://cy80y0cs687eh" path="res://sistema_sol.gd" id="4_57wwi"]
 [ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="5_o0wp1"]
+[ext_resource type="Script" uid="uid://cgjsgybs03e66" path="res://fotometro.gd" id="6_o0wp1"]
 
 [sub_resource type="PlaneMesh" id="PisoMalla"]
 size = Vector2(30, 30)
@@ -94,8 +95,10 @@ shape = SubResource("Capsula")
 [node name="Modelo" parent="Personaje" unique_id=885123629 instance=ExtResource("3_57wwi")]
 transform = Transform3D(-2.6, 0, 0, 0, 2.6, 0, 0, 0, -2.6, 0, 0, 0)
 
-[node name="SistemaSol" type="Node3D" parent="." unique_id=1770138885]
+[node name="SistemaSol" type="Node3D" parent="." unique_id=1770138885 node_paths=PackedStringArray("sol", "entorno")]
 script = ExtResource("4_57wwi")
+sol = NodePath("DirectionalLight3D")
+entorno = NodePath("WorldEnvironment")
 
 [node name="CicloDia" type="Node3D" parent="SistemaSol" unique_id=1843802504]
 script = ExtResource("5_o0wp1")
@@ -106,3 +109,9 @@ environment = SubResource("Entorno")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=729115647]
 transform = Transform3D(0.8660253, -0.35355338, 0.3535538, 0, 0.70710725, 0.7071064, -0.50000024, -0.612372, 0.6123727, 0, 6, 0)
 shadow_enabled = true
+
+[node name="Fotometro" type="Node3D" parent="." unique_id=116303176 node_paths=PackedStringArray("sistema", "camara", "superficie")]
+script = ExtResource("6_o0wp1")
+sistema = NodePath("../SistemaSol")
+camara = NodePath("../Camera3D")
+superficie = NodePath("../Suelo/MeshInstance3D")

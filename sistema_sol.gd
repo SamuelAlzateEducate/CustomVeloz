@@ -16,7 +16,7 @@ func _ready() -> void:
 	if not entorno:
 		entorno = get_node_or_null("../WorldEnvironment")
 	
-	# Prueba de la señal en consola (puedes borrar o comentar esta línea después de probar)
+	# Prueba de la señal en consola (puedes borrar o comentar esta línea si ya pasó la prueba)
 	cambio_noche.connect(func(n): print("noche: ", n, " a las ", snappedf(ciclo.hora, 0.1)))
 
 func _process(delta: float) -> void:
@@ -38,3 +38,15 @@ func aplicar_hora() -> void:
 	if es_noche != era_noche:
 		era_noche = es_noche
 		cambio_noche.emit(es_noche)
+
+# --- NUEVO PARA EL NIVEL 3 (Lambert y Predicción) ---
+static func lambert(normal: Vector3, hacia_luz: Vector3) -> float:
+	var n_norm = normal.normalized()
+	var l_norm = hacia_luz.normalized()
+	return maxf(0.0, n_norm.dot(l_norm))
+
+func prediccion_piso() -> float:
+	var hacia_luz = sol.global_transform.basis.z
+	var n_piso = Vector3(0, 1, 0)
+	var difusa = lambert(n_piso, hacia_luz)
+	return sol.light_energy * sol.light_color.r * difusa
