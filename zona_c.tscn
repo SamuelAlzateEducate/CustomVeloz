@@ -1,0 +1,178 @@
+[gd_scene format=3 uid="uid://cmwfitfxy6e0e"]
+
+[ext_resource type="Script" uid="uid://c4ncpqjuna8wv" path="res://camara_sigue.gd" id="1_nknid"]
+[ext_resource type="Script" uid="uid://cy80y0cs687eh" path="res://sistema_sol.gd" id="2_toaxk"]
+[ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="3_e2xqd"]
+[ext_resource type="Script" uid="uid://dfube0o7q837r" path="res://luz_parpadeante.gd" id="4_4bgqf"]
+[ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="5_toaxk"]
+[ext_resource type="Script" uid="uid://c6gfv2whmnbjv" path="res://luz_jugador.gd" id="6_e2xqd"]
+
+[sub_resource type="StandardMaterial3D" id="PisoMat"]
+albedo_color = Color(0.149, 0.196, 0.22, 1)
+
+[sub_resource type="PlaneMesh" id="PisoMalla"]
+material = SubResource("PisoMat")
+size = Vector2(30, 30)
+
+[sub_resource type="BoxShape3D" id="PisoForma"]
+size = Vector3(30, 0.2, 30)
+
+[sub_resource type="StandardMaterial3D" id="BordeMat"]
+albedo_color = Color(0, 0.898, 1, 1)
+emission_enabled = true
+emission = Color(0, 0.898, 1, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="BoxMesh" id="BordeMalla"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 28)
+
+[sub_resource type="BoxShape3D" id="BordeForma"]
+size = Vector3(0.4, 0.8, 28)
+
+[sub_resource type="StandardMaterial3D" id="EsferaMat"]
+albedo_color = Color(0.4627451, 1, 0.011764706, 1)
+emission_enabled = true
+emission = Color(0.4627451, 1, 0.011764706, 1)
+
+[sub_resource type="SphereMesh" id="EsferaMalla"]
+material = SubResource("EsferaMat")
+radius = 0.4
+height = 0.8
+
+[sub_resource type="StandardMaterial3D" id="EsferaAtaqueMat"]
+albedo_color = Color(1, 0.91764706, 0, 1)
+emission_enabled = true
+emission = Color(1, 0.91764706, 0, 1)
+
+[sub_resource type="SphereMesh" id="EsferaAtaqueMalla"]
+material = SubResource("EsferaAtaqueMat")
+radius = 0.4
+height = 0.8
+
+[sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
+
+[sub_resource type="Sky" id="Cielo"]
+sky_material = SubResource("CieloMat")
+
+[sub_resource type="Environment" id="Entorno"]
+background_mode = 2
+sky = SubResource("Cielo")
+ambient_light_source = 2
+ambient_light_color = Color(0.149, 0.196, 0.22, 1)
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="BrilloMat"]
+albedo_color = Color(0.690196, 0.745098, 0.772549, 1)
+roughness = 0.2
+
+[sub_resource type="SphereMesh" id="BrilloMalla"]
+material = SubResource("BrilloMat")
+
+[node name="zona_c" type="Node3D" unique_id=561005950]
+
+[node name="Suelo" type="StaticBody3D" parent="." unique_id=1276225833]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Suelo" unique_id=1470569379]
+mesh = SubResource("PisoMalla")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Suelo" unique_id=902529640]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("PisoForma")
+
+[node name="Bordes" type="Node3D" parent="." unique_id=1029120638]
+
+[node name="BordeIzq" type="StaticBody3D" parent="Bordes" unique_id=244829453]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.4, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeIzq" unique_id=1807367828]
+mesh = SubResource("BordeMalla")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeIzq" unique_id=1362498612]
+shape = SubResource("BordeForma")
+
+[node name="BordeDer" type="StaticBody3D" parent="Bordes" unique_id=750061225]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.4, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeDer" unique_id=132168835]
+mesh = SubResource("BordeMalla")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeDer" unique_id=1669992064]
+shape = SubResource("BordeForma")
+
+[node name="Esferas" type="Node3D" parent="." unique_id=280310449]
+
+[node name="Esfera1" type="MeshInstance3D" parent="Esferas" unique_id=2013500677]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, 4)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera2" type="MeshInstance3D" parent="Esferas" unique_id=1797691440]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, 0)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera3" type="MeshInstance3D" parent="Esferas" unique_id=1002702083]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, -4)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera4" type="MeshInstance3D" parent="Esferas" unique_id=217537364]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, -8)
+mesh = SubResource("EsferaMalla")
+
+[node name="EsferaAtaque" type="MeshInstance3D" parent="Esferas" unique_id=1517769623]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -11)
+mesh = SubResource("EsferaAtaqueMalla")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1173616730 node_paths=PackedStringArray("objetivo")]
+transform = Transform3D(1, 0, 0, 0, 0.81915206, 0.57357645, 0, -0.57357645, 0.81915206, 0, 5, 7)
+current = true
+script = ExtResource("1_nknid")
+objetivo = NodePath("../Personaje")
+suavizado = 8.0
+
+[node name="SistemaSol" type="Node3D" parent="." unique_id=1178733517 node_paths=PackedStringArray("sol", "entorno")]
+script = ExtResource("2_toaxk")
+sol = NodePath("DirectionalLight3D")
+entorno = NodePath("WorldEnvironment")
+
+[node name="CicloDia" type="Node" parent="SistemaSol" unique_id=504200210]
+script = ExtResource("3_e2xqd")
+hora = 17.0
+pausado = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=1660549695]
+environment = SubResource("Entorno")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=1023321303]
+transform = Transform3D(1, 0, 0, 0, -0.9659258, 0.25881913, 0, -0.25881913, -0.9659258, 0, 6, 0)
+shadow_enabled = true
+shadow_bias = 3.0
+shadow_normal_bias = 6.0
+
+[node name="LuzParpadeante" type="OmniLight3D" parent="." unique_id=1498922195]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 2.5, -3)
+light_color = Color(0, 0.8980392, 1, 1)
+omni_range = 8.0
+omni_attenuation = 2.0
+script = ExtResource("4_4bgqf")
+energia_base = 3.0
+amplitud = 0.25
+
+[node name="EsferaBrillo" type="MeshInstance3D" parent="." unique_id=1381626993]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.5, 7.5)
+mesh = SubResource("BrilloMalla")
+
+[node name="Personaje" parent="." unique_id=843810207 instance=ExtResource("5_toaxk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
+
+[node name="FaroIzq" type="SpotLight3D" parent="Personaje" unique_id=1327449027]
+light_color = Color(1, 0.92941177, 0.7019608, 1)
+light_energy = 2.5
+spot_angle = 30.0
+script = ExtResource("6_e2xqd")
+lado = -1.0
+
+[node name="FaroDer" type="SpotLight3D" parent="Personaje" unique_id=413107024]
+light_color = Color(1, 0.92941177, 0.7019608, 1)
+light_energy = 2.5
+spot_angle = 30.0
+script = ExtResource("6_e2xqd")
