@@ -6,10 +6,10 @@ extends SpotLight3D
 # Cada faro es una instancia de este script; "lado" dice cuál es (-1 izquierdo, +1 derecho).
 
 @export var rango := 8.0 # m: hasta dónde alumbra
-@export var altura := 0.5 # m sobre los pies del jugador
+@export var altura := 0.65 # m sobre los pies del jugador
 @export var lado := 1.0 # -1 = faro izquierdo, +1 = faro derecho
-@export var separacion := 0.25 # m del centro del carro a cada faro
-@export var adelante := 0.5 # m por delante del centro (así la luz sale fuera del cuerpo)
+@export var separacion := 0.7 # m del centro del carro a cada faro
+@export var adelante := 2.0 # m por delante del centro (así la luz sale fuera del cuerpo)
 @export var inclinacion := 6.0 # grados hacia el piso (0 = horizontal)
 @export var probar_funciones := true # imprime las pruebas numéricas al empezar (solo el faro izquierdo)
 
