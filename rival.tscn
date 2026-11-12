@@ -1,25 +1,19 @@
 [gd_scene format=3 uid="uid://b18r8kneeliyy"]
 
 [ext_resource type="Script" path="res://rival.gd" id="1_rival"]
+[ext_resource type="PackedScene" uid="uid://cdrwwyj7iqcti" path="res://Modelos_Carros/Carro_Contrincante1/fenyr.glb" id="2_fenyr"]
 
-[sub_resource type="CapsuleShape3D" id="CapsulaRival"]
-radius = 0.35
-height = 1.75
-
-[sub_resource type="StandardMaterial3D" id="RivalMat"]
-albedo_color = Color(0.9, 0.2, 0.2, 1)
-
-[sub_resource type="BoxMesh" id="RivalMalla"]
-material = SubResource("RivalMat")
-size = Vector3(1.2, 0.7, 2.0)
+[sub_resource type="BoxShape3D" id="CarroRivalForma"]
+size = Vector3(1.85, 1.4, 3.9)
 
 [node name="Rival" type="CharacterBody3D"]
+floor_constant_speed = true
+floor_snap_length = 0.4
 script = ExtResource("1_rival")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
-shape = SubResource("CapsulaRival")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.12)
+shape = SubResource("CarroRivalForma")
 
-[node name="Modelo" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
-mesh = SubResource("RivalMalla")
+[node name="Modelo" parent="." instance=ExtResource("2_fenyr")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)

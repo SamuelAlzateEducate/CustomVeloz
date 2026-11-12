@@ -9,7 +9,8 @@
 [ext_resource type="Script" path="res://partida.gd" id="7_partida"]
 [ext_resource type="Script" path="res://meta.gd" id="8_meta"]
 [ext_resource type="PackedScene" uid="uid://b18r8kneeliyy" path="res://rival.tscn" id="10_rival_scene"]
-[ext_resource type="Script" path="res://respawn.gd" id="11_respawn"]
+[ext_resource type="PackedScene" uid="uid://dt7x8g3rival2" path="res://rival2.tscn" id="11_rival2_scene"]
+[ext_resource type="Script" path="res://respawn.gd" id="12_respawn"]
 
 ; =========================================================
 ; MATERIALES (Paleta oficial CustomVeloz)
@@ -496,7 +497,7 @@ shape = SubResource("ConoShape")
 ; =========================================================
 [node name="KillZone" type="Area3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -6, -85)
-script = ExtResource("11_respawn")
+script = ExtResource("12_respawn")
 
 [node name="Col" type="CollisionShape3D" parent="KillZone"]
 shape = SubResource("KillZoneShape")
@@ -649,8 +650,16 @@ spot_angle = 30.0
 script = ExtResource("6_e2xqd")
 
 ; =========================================================
-; RIVAL (IA que corre por el circuito recto hacia la meta)
+; CONTRINCANTES (IA - Fenyr e Italia)
 ; =========================================================
-[node name="Rival" parent="." instance=ExtResource("10_rival_scene")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, 11)
-ruta = Array[Vector3]([Vector3(0, 0, 0), Vector3(0, 0, -18), Vector3(0, 1.75, -37.5), Vector3(0, 3.5, -58), Vector3(-2, 3.5, -85), Vector3(2, 3.5, -105), Vector3(0, 1.75, -132.5), Vector3(0, 0, -155), Vector3(0, 0, -180)])
+[node name="Rival1_Fenyr" parent="." instance=ExtResource("10_rival_scene")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 11)
+velocidad_maxima = 18.0
+aceleracion = 6.0
+ruta = Array[Vector3]([Vector3(2.5, 0, 0), Vector3(2.5, 0, -18), Vector3(2.5, 1.75, -37.5), Vector3(2.5, 3.5, -58), Vector3(1.5, 3.5, -85), Vector3(3.0, 3.5, -105), Vector3(2.5, 1.75, -132.5), Vector3(2.5, 0, -155), Vector3(2.5, 0, -180)])
+
+[node name="Rival2_Italia" parent="." instance=ExtResource("11_rival2_scene")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 11)
+velocidad_maxima = 16.5
+aceleracion = 5.5
+ruta = Array[Vector3]([Vector3(-2.5, 0, 0), Vector3(-2.5, 0, -18), Vector3(-2.5, 1.75, -37.5), Vector3(-2.5, 3.5, -58), Vector3(-3.0, 3.5, -85), Vector3(-1.5, 3.5, -105), Vector3(-2.5, 1.75, -132.5), Vector3(-2.5, 0, -155), Vector3(-2.5, 0, -180)])

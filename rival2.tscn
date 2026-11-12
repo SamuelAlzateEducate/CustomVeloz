@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://dt7x8g3rival2"]
+
+[ext_resource type="Script" path="res://rival.gd" id="1_rival"]
+[ext_resource type="PackedScene" uid="uid://d21ywigumncue" path="res://Modelos_Carros/Carro_Contrincante2/italia.glb" id="2_italia"]
+
+[sub_resource type="BoxShape3D" id="CarroRivalForma"]
+size = Vector3(1.85, 1.4, 3.9)
+
+[node name="Rival2" type="CharacterBody3D"]
+floor_constant_speed = true
+floor_snap_length = 0.4
+script = ExtResource("1_rival")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.12)
+shape = SubResource("CarroRivalForma")
+
+[node name="Modelo" parent="." instance=ExtResource("2_italia")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
