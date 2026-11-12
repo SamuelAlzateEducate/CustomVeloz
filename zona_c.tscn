@@ -6,50 +6,165 @@
 [ext_resource type="Script" uid="uid://dfube0o7q837r" path="res://luz_parpadeante.gd" id="4_4bgqf"]
 [ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="5_toaxk"]
 [ext_resource type="Script" uid="uid://c6gfv2whmnbjv" path="res://luz_jugador.gd" id="6_e2xqd"]
+[ext_resource type="Script" path="res://partida.gd" id="7_partida"]
+[ext_resource type="Script" path="res://meta.gd" id="8_meta"]
+[ext_resource type="PackedScene" uid="uid://b18r8kneeliyy" path="res://rival.tscn" id="10_rival_scene"]
+[ext_resource type="Script" path="res://respawn.gd" id="11_respawn"]
 
+; =========================================================
+; MATERIALES (Paleta oficial CustomVeloz)
+; =========================================================
+
+; --- Suelo: Gris Asfalto #263238 ---
 [sub_resource type="StandardMaterial3D" id="PisoMat"]
 albedo_color = Color(0.149, 0.196, 0.22, 1)
 
-[sub_resource type="PlaneMesh" id="PisoMalla"]
-material = SubResource("PisoMat")
-size = Vector2(30, 30)
+; --- Rampa: gris ligeramente diferenciado con textura clara ---
+[sub_resource type="StandardMaterial3D" id="RampaMat"]
+albedo_color = Color(0.18, 0.23, 0.26, 1)
 
-[sub_resource type="BoxShape3D" id="PisoForma"]
-size = Vector3(30, 0.2, 30)
-
+; --- Bordes: Azul Neón #00E5FF con emisión brillante ---
 [sub_resource type="StandardMaterial3D" id="BordeMat"]
 albedo_color = Color(0, 0.898, 1, 1)
 emission_enabled = true
 emission = Color(0, 0.898, 1, 1)
 emission_energy_multiplier = 1.5
 
-[sub_resource type="BoxMesh" id="BordeMalla"]
-material = SubResource("BordeMat")
-size = Vector3(0.4, 0.8, 28)
-
-[sub_resource type="BoxShape3D" id="BordeForma"]
-size = Vector3(0.4, 0.8, 28)
-
+; --- Esferas Verdes: #76FF03 evolución +15 km/h ---
 [sub_resource type="StandardMaterial3D" id="EsferaMat"]
 albedo_color = Color(0.4627451, 1, 0.011764706, 1)
 emission_enabled = true
 emission = Color(0.4627451, 1, 0.011764706, 1)
 
-[sub_resource type="SphereMesh" id="EsferaMalla"]
-material = SubResource("EsferaMat")
-radius = 0.4
-height = 0.8
-
+; --- Esferas Amarillas: #FFEA00 onda expansiva (shockwave) ---
 [sub_resource type="StandardMaterial3D" id="EsferaAtaqueMat"]
 albedo_color = Color(1, 0.91764706, 0, 1)
 emission_enabled = true
 emission = Color(1, 0.91764706, 0, 1)
+
+; --- Conos Obstáculo: Naranja Fuego #FF5722 ---
+[sub_resource type="StandardMaterial3D" id="ConoMat"]
+albedo_color = Color(1, 0.341, 0.133, 1)
+emission_enabled = true
+emission = Color(1, 0.341, 0.133, 1)
+emission_energy_multiplier = 0.4
+
+; --- Esfera Brillo decorativa ---
+[sub_resource type="StandardMaterial3D" id="BrilloMat"]
+albedo_color = Color(0.690196, 0.745098, 0.772549, 1)
+roughness = 0.2
+
+; =========================================================
+; MALLAS Y FORMAS (Pista recta continua de 211 metros)
+; =========================================================
+
+; Tramo 1: Recta de Salida (12m x 36m)
+[sub_resource type="PlaneMesh" id="Mesh_T1"]
+material = SubResource("PisoMat")
+size = Vector2(12, 36)
+
+[sub_resource type="BoxShape3D" id="Shape_T1"]
+size = Vector3(12, 0.2, 36)
+
+[sub_resource type="BoxMesh" id="BordeMesh_36"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 36)
+
+[sub_resource type="BoxShape3D" id="BordeShape_36"]
+size = Vector3(0.4, 0.8, 36)
+
+; Tramo 2 y 4: Rampas suavemente inclinadas (5.7°, 35.2m de longitud)
+[sub_resource type="PlaneMesh" id="Mesh_Rampa"]
+material = SubResource("RampaMat")
+size = Vector2(12, 35.2)
+
+[sub_resource type="BoxShape3D" id="Shape_Rampa"]
+size = Vector3(12, 0.2, 35.2)
+
+[sub_resource type="BoxMesh" id="BordeMesh_Rampa"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 35.2)
+
+[sub_resource type="BoxShape3D" id="BordeShape_Rampa"]
+size = Vector3(0.4, 0.8, 35.2)
+
+; Tramo 3: Puente Elevado (12m x 60m a Y=3.5m)
+[sub_resource type="PlaneMesh" id="Mesh_Puente"]
+material = SubResource("PisoMat")
+size = Vector2(12, 60)
+
+[sub_resource type="BoxShape3D" id="Shape_Puente"]
+size = Vector3(12, 0.2, 60)
+
+[sub_resource type="BoxMesh" id="BordeMesh_60"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 60)
+
+[sub_resource type="BoxShape3D" id="BordeShape_60"]
+size = Vector3(0.4, 0.8, 60)
+
+[sub_resource type="BoxMesh" id="BordeMesh_20"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 20)
+
+[sub_resource type="BoxShape3D" id="BordeShape_20"]
+size = Vector3(0.4, 0.8, 20)
+
+[sub_resource type="BoxMesh" id="BordeMesh_15"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 15)
+
+[sub_resource type="BoxShape3D" id="BordeShape_15"]
+size = Vector3(0.4, 0.8, 15)
+
+; Tramo 5: Recta Final (12m x 45m)
+[sub_resource type="PlaneMesh" id="Mesh_T5"]
+material = SubResource("PisoMat")
+size = Vector2(12, 45)
+
+[sub_resource type="BoxShape3D" id="Shape_T5"]
+size = Vector3(12, 0.2, 45)
+
+[sub_resource type="BoxMesh" id="BordeMesh_45"]
+material = SubResource("BordeMat")
+size = Vector3(0.4, 0.8, 45)
+
+[sub_resource type="BoxShape3D" id="BordeShape_45"]
+size = Vector3(0.4, 0.8, 45)
+
+; Muro de cierre al fondo de la recta final
+[sub_resource type="BoxMesh" id="BordeMesh_Fondo"]
+material = SubResource("BordeMat")
+size = Vector3(12.4, 0.8, 0.4)
+
+[sub_resource type="BoxShape3D" id="BordeShape_Fondo"]
+size = Vector3(12.4, 0.8, 0.4)
+
+; Formas de objetos coleccionables y obstáculos
+[sub_resource type="SphereMesh" id="EsferaMalla"]
+material = SubResource("EsferaMat")
+radius = 0.4
+height = 0.8
 
 [sub_resource type="SphereMesh" id="EsferaAtaqueMalla"]
 material = SubResource("EsferaAtaqueMat")
 radius = 0.4
 height = 0.8
 
+[sub_resource type="SphereMesh" id="BrilloMalla"]
+material = SubResource("BrilloMat")
+
+[sub_resource type="CylinderMesh" id="ConoMalla"]
+material = SubResource("ConoMat")
+top_radius = 0.05
+bottom_radius = 0.3
+height = 0.7
+
+[sub_resource type="CylinderShape3D" id="ConoShape"]
+radius = 0.3
+height = 0.7
+
+; Entorno y cielo
 [sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
 
 [sub_resource type="Sky" id="Cielo"]
@@ -62,93 +177,417 @@ ambient_light_source = 2
 ambient_light_color = Color(0.149, 0.196, 0.22, 1)
 tonemap_mode = 2
 
-[sub_resource type="StandardMaterial3D" id="BrilloMat"]
-albedo_color = Color(0.690196, 0.745098, 0.772549, 1)
-roughness = 0.2
+; Triggers
+[sub_resource type="BoxShape3D" id="MetaShape"]
+size = Vector3(12, 4, 2)
 
-[sub_resource type="SphereMesh" id="BrilloMalla"]
-material = SubResource("BrilloMat")
+[sub_resource type="BoxShape3D" id="CheckpointShape"]
+size = Vector3(12, 5, 2)
 
-[node name="zona_c" type="Node3D" unique_id=561005950]
+[sub_resource type="BoxShape3D" id="KillZoneShape"]
+size = Vector3(80, 2, 140)
 
-[node name="Suelo" type="StaticBody3D" parent="." unique_id=1276225833]
+; =========================================================
+; NODO RAÍZ: zona_c
+; =========================================================
+[node name="zona_c" type="Node3D"]
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Suelo" unique_id=1470569379]
-mesh = SubResource("PisoMalla")
+; =========================================================
+; TRAMO 1: RECTA DE SALIDA (Z: +16 a -20, Longitud: 36m, Y: 0)
+; =========================================================
+[node name="Tramo1_Salida" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Suelo" unique_id=902529640]
+[node name="Suelo" type="StaticBody3D" parent="Tramo1_Salida"]
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo1_Salida/Suelo"]
+mesh = SubResource("Mesh_T1")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo1_Salida/Suelo"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
-shape = SubResource("PisoForma")
+shape = SubResource("Shape_T1")
 
-[node name="Bordes" type="Node3D" parent="." unique_id=1029120638]
+[node name="BordeIzq" type="StaticBody3D" parent="Tramo1_Salida"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.4, 0)
 
-[node name="BordeIzq" type="StaticBody3D" parent="Bordes" unique_id=244829453]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.4, 0)
+[node name="Mesh" type="MeshInstance3D" parent="Tramo1_Salida/BordeIzq"]
+mesh = SubResource("BordeMesh_36")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeIzq" unique_id=1807367828]
-mesh = SubResource("BordeMalla")
+[node name="Col" type="CollisionShape3D" parent="Tramo1_Salida/BordeIzq"]
+shape = SubResource("BordeShape_36")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeIzq" unique_id=1362498612]
-shape = SubResource("BordeForma")
+[node name="BordeDer" type="StaticBody3D" parent="Tramo1_Salida"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, 0)
 
-[node name="BordeDer" type="StaticBody3D" parent="Bordes" unique_id=750061225]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.4, 0)
+[node name="Mesh" type="MeshInstance3D" parent="Tramo1_Salida/BordeDer"]
+mesh = SubResource("BordeMesh_36")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Bordes/BordeDer" unique_id=132168835]
-mesh = SubResource("BordeMalla")
+[node name="Col" type="CollisionShape3D" parent="Tramo1_Salida/BordeDer"]
+shape = SubResource("BordeShape_36")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Bordes/BordeDer" unique_id=1669992064]
-shape = SubResource("BordeForma")
+; =========================================================
+; TRAMO 2: LOMA / RAMPA DE SUBIDA (Z: -20 a -55, Sube a Y=3.5m)
+; Inclinación suave de 5.7° sin bordes abruptos
+; =========================================================
+[node name="Tramo2_RampaSubida" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.995037, -0.099504, 0, 0.099504, 0.995037, 0, 1.75, -37.5)
 
-[node name="Esferas" type="Node3D" parent="." unique_id=280310449]
+[node name="Suelo" type="StaticBody3D" parent="Tramo2_RampaSubida"]
 
-[node name="Esfera1" type="MeshInstance3D" parent="Esferas" unique_id=2013500677]
+[node name="Mesh" type="MeshInstance3D" parent="Tramo2_RampaSubida/Suelo"]
+mesh = SubResource("Mesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo2_RampaSubida/Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("Shape_Rampa")
+
+[node name="BordeIzq" type="StaticBody3D" parent="Tramo2_RampaSubida"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo2_RampaSubida/BordeIzq"]
+mesh = SubResource("BordeMesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo2_RampaSubida/BordeIzq"]
+shape = SubResource("BordeShape_Rampa")
+
+[node name="BordeDer" type="StaticBody3D" parent="Tramo2_RampaSubida"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo2_RampaSubida/BordeDer"]
+mesh = SubResource("BordeMesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo2_RampaSubida/BordeDer"]
+shape = SubResource("BordeShape_Rampa")
+
+; =========================================================
+; TRAMO 3: PUENTE ELEVADO (Z: -55 a -115, Altura: Y=3.5m)
+; Incluye la zona de riesgo espacial con caída libre al vacío
+; =========================================================
+[node name="Tramo3_PuenteElevado" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5, -85)
+
+[node name="Suelo" type="StaticBody3D" parent="Tramo3_PuenteElevado"]
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo3_PuenteElevado/Suelo"]
+mesh = SubResource("Mesh_Puente")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo3_PuenteElevado/Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("Shape_Puente")
+
+; Borde izquierdo continuo (protección lateral izquierda)
+[node name="BordeIzq" type="StaticBody3D" parent="Tramo3_PuenteElevado"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo3_PuenteElevado/BordeIzq"]
+mesh = SubResource("BordeMesh_60")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo3_PuenteElevado/BordeIzq"]
+shape = SubResource("BordeShape_60")
+
+; Borde derecho inicial (Z: -55 a -75, 20m)
+[node name="BordeDer_Inicio" type="StaticBody3D" parent="Tramo3_PuenteElevado"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, 20)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo3_PuenteElevado/BordeDer_Inicio"]
+mesh = SubResource("BordeMesh_20")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo3_PuenteElevado/BordeDer_Inicio"]
+shape = SubResource("BordeShape_20")
+
+; ZONA DE VACÍO: De Z = -75 a Z = -100 (25m SIN BORDE DERECHO)
+
+; Borde derecho final (Z: -100 a -115, 15m)
+[node name="BordeDer_Final" type="StaticBody3D" parent="Tramo3_PuenteElevado"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, -22.5)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo3_PuenteElevado/BordeDer_Final"]
+mesh = SubResource("BordeMesh_15")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo3_PuenteElevado/BordeDer_Final"]
+shape = SubResource("BordeShape_15")
+
+; =========================================================
+; TRAMO 4: RAMPA DE BAJADA (Z: -115 a -150, Baja de Y=3.5m a 0)
+; =========================================================
+[node name="Tramo4_RampaBajada" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.995037, 0.099504, 0, -0.099504, 0.995037, 0, 1.75, -132.5)
+
+[node name="Suelo" type="StaticBody3D" parent="Tramo4_RampaBajada"]
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo4_RampaBajada/Suelo"]
+mesh = SubResource("Mesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo4_RampaBajada/Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("Shape_Rampa")
+
+[node name="BordeIzq" type="StaticBody3D" parent="Tramo4_RampaBajada"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo4_RampaBajada/BordeIzq"]
+mesh = SubResource("BordeMesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo4_RampaBajada/BordeIzq"]
+shape = SubResource("BordeShape_Rampa")
+
+[node name="BordeDer" type="StaticBody3D" parent="Tramo4_RampaBajada"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo4_RampaBajada/BordeDer"]
+mesh = SubResource("BordeMesh_Rampa")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo4_RampaBajada/BordeDer"]
+shape = SubResource("BordeShape_Rampa")
+
+; =========================================================
+; TRAMO 5: RECTA FINAL Y LLEGADA (Z: -150 a -195, Y: 0)
+; =========================================================
+[node name="Tramo5_RectaFinal" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -172.5)
+
+[node name="Suelo" type="StaticBody3D" parent="Tramo5_RectaFinal"]
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo5_RectaFinal/Suelo"]
+mesh = SubResource("Mesh_T5")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo5_RectaFinal/Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("Shape_T5")
+
+[node name="BordeIzq" type="StaticBody3D" parent="Tramo5_RectaFinal"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo5_RectaFinal/BordeIzq"]
+mesh = SubResource("BordeMesh_45")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo5_RectaFinal/BordeIzq"]
+shape = SubResource("BordeShape_45")
+
+[node name="BordeDer" type="StaticBody3D" parent="Tramo5_RectaFinal"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.4, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo5_RectaFinal/BordeDer"]
+mesh = SubResource("BordeMesh_45")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo5_RectaFinal/BordeDer"]
+shape = SubResource("BordeShape_45")
+
+[node name="BordeFondo" type="StaticBody3D" parent="Tramo5_RectaFinal"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -22.5)
+
+[node name="Mesh" type="MeshInstance3D" parent="Tramo5_RectaFinal/BordeFondo"]
+mesh = SubResource("BordeMesh_Fondo")
+
+[node name="Col" type="CollisionShape3D" parent="Tramo5_RectaFinal/BordeFondo"]
+shape = SubResource("BordeShape_Fondo")
+
+; =========================================================
+; ESFERAS VERDES (+15 km/h) DISTRIBUIDAS EN LÍNEA
+; =========================================================
+[node name="Esferas" type="Node3D" parent="."]
+
+; Recta de salida
+[node name="Esfera1" type="MeshInstance3D" parent="Esferas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, 4)
 mesh = SubResource("EsferaMalla")
 
-[node name="Esfera2" type="MeshInstance3D" parent="Esferas" unique_id=1797691440]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, 0)
+[node name="Esfera2" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, -4)
 mesh = SubResource("EsferaMalla")
 
-[node name="Esfera3" type="MeshInstance3D" parent="Esferas" unique_id=1002702083]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, -4)
+[node name="Esfera3" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -14)
 mesh = SubResource("EsferaMalla")
 
-[node name="Esfera4" type="MeshInstance3D" parent="Esferas" unique_id=217537364]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, -8)
+; Rampa de subida
+[node name="Esfera4" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2.5, -36)
 mesh = SubResource("EsferaMalla")
 
-[node name="EsferaAtaque" type="MeshInstance3D" parent="Esferas" unique_id=1517769623]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -11)
+; Puente elevado
+[node name="Esfera5" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 4.3, -65)
+mesh = SubResource("EsferaMalla")
+
+[node name="Esfera6" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 4.3, -88)
+mesh = SubResource("EsferaMalla")
+
+; Rampa de bajada
+[node name="Esfera7" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 2.5, -130)
+mesh = SubResource("EsferaMalla")
+
+; Recta final
+[node name="Esfera8" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -165)
+mesh = SubResource("EsferaMalla")
+
+; =========================================================
+; ESFERAS AMARILLAS DE ATAQUE (Shockwave)
+; =========================================================
+[node name="EsferaAtaque1" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -10)
 mesh = SubResource("EsferaAtaqueMalla")
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=1173616730 node_paths=PackedStringArray("objetivo")]
+[node name="EsferaAtaque2" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.3, -75)
+mesh = SubResource("EsferaAtaqueMalla")
+
+[node name="EsferaAtaque3" type="MeshInstance3D" parent="Esferas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -158)
+mesh = SubResource("EsferaAtaqueMalla")
+
+; =========================================================
+; OBSTÁCULOS: CONOS DE TRÁFICO (#FF5722)
+; =========================================================
+[node name="Obstaculos" type="Node3D" parent="."]
+
+; Conos en la salida (Beat 4: Esquivar)
+[node name="Cono1" type="StaticBody3D" parent="Obstaculos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0.35, -12)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstaculos/Cono1"]
+mesh = SubResource("ConoMalla")
+
+[node name="Col" type="CollisionShape3D" parent="Obstaculos/Cono1"]
+shape = SubResource("ConoShape")
+
+[node name="Cono2" type="StaticBody3D" parent="Obstaculos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.35, -16)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstaculos/Cono2"]
+mesh = SubResource("ConoMalla")
+
+[node name="Col" type="CollisionShape3D" parent="Obstaculos/Cono2"]
+shape = SubResource("ConoShape")
+
+; Conos en el puente elevado: en el carril izquierdo, forzando a maniobrar cerca del vacío
+[node name="Cono3" type="StaticBody3D" parent="Obstaculos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 3.85, -80)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstaculos/Cono3"]
+mesh = SubResource("ConoMalla")
+
+[node name="Col" type="CollisionShape3D" parent="Obstaculos/Cono3"]
+shape = SubResource("ConoShape")
+
+[node name="Cono4" type="StaticBody3D" parent="Obstaculos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 3.85, -86)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstaculos/Cono4"]
+mesh = SubResource("ConoMalla")
+
+[node name="Col" type="CollisionShape3D" parent="Obstaculos/Cono4"]
+shape = SubResource("ConoShape")
+
+[node name="Cono5" type="StaticBody3D" parent="Obstaculos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 3.85, -92)
+
+[node name="Mesh" type="MeshInstance3D" parent="Obstaculos/Cono5"]
+mesh = SubResource("ConoMalla")
+
+[node name="Col" type="CollisionShape3D" parent="Obstaculos/Cono5"]
+shape = SubResource("ConoShape")
+
+; =========================================================
+; KILL ZONE (Caída al vacío debajo del puente elevado)
+; =========================================================
+[node name="KillZone" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -6, -85)
+script = ExtResource("11_respawn")
+
+[node name="Col" type="CollisionShape3D" parent="KillZone"]
+shape = SubResource("KillZoneShape")
+
+; =========================================================
+; CHECKPOINTS (Puntos de reaparición tras caída al vacío)
+; =========================================================
+[node name="Checkpoints" type="Node3D" parent="."]
+
+[node name="CP1_Salida" type="Area3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 8)
+
+[node name="Col" type="CollisionShape3D" parent="Checkpoints/CP1_Salida"]
+shape = SubResource("CheckpointShape")
+
+[node name="CP2_AntesRampa" type="Area3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -18)
+
+[node name="Col" type="CollisionShape3D" parent="Checkpoints/CP2_AntesRampa"]
+shape = SubResource("CheckpointShape")
+
+[node name="CP3_PuenteInicio" type="Area3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, -58)
+
+[node name="Col" type="CollisionShape3D" parent="Checkpoints/CP3_PuenteInicio"]
+shape = SubResource("CheckpointShape")
+
+[node name="CP4_AntesVacio" type="Area3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, -73)
+
+[node name="Col" type="CollisionShape3D" parent="Checkpoints/CP4_AntesVacio"]
+shape = SubResource("CheckpointShape")
+
+[node name="CP5_RectaFinal" type="Area3D" parent="Checkpoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -152)
+
+[node name="Col" type="CollisionShape3D" parent="Checkpoints/CP5_RectaFinal"]
+shape = SubResource("CheckpointShape")
+
+; =========================================================
+; META Y PARTIDA (Línea de llegada al final del tramo)
+; =========================================================
+[node name="Partida" type="Node" parent="." groups=["partida"]]
+script = ExtResource("7_partida")
+metas = 1
+
+[node name="Meta" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -180)
+script = ExtResource("8_meta")
+
+[node name="Col" type="CollisionShape3D" parent="Meta"]
+shape = SubResource("MetaShape")
+
+; =========================================================
+; CÁMARA (PERSPECTIVA ORIGINAL 3RA PERSONA RECUPERADA)
+; Distancia: (0, 3, 7) — Suavizado: 8.0 — Límites extendidos
+; =========================================================
+[node name="Camera3D" type="Camera3D" parent="." node_paths=PackedStringArray("objetivo")]
 transform = Transform3D(1, 0, 0, 0, 0.81915206, 0.57357645, 0, -0.57357645, 0.81915206, 0, 5, 7)
 current = true
 script = ExtResource("1_nknid")
 objetivo = NodePath("../Personaje")
+distancia = Vector3(0, 3, 7)
 suavizado = 8.0
+limite_min = Vector2(-15, -210)
+limite_max = Vector2(15, 30)
 
-[node name="SistemaSol" type="Node3D" parent="." unique_id=1178733517 node_paths=PackedStringArray("sol", "entorno")]
+; =========================================================
+; ILUMINACIÓN Y ENTORNO
+; =========================================================
+[node name="SistemaSol" type="Node3D" parent="." node_paths=PackedStringArray("sol", "entorno")]
 script = ExtResource("2_toaxk")
 sol = NodePath("DirectionalLight3D")
 entorno = NodePath("WorldEnvironment")
 
-[node name="CicloDia" type="Node" parent="SistemaSol" unique_id=504200210]
+[node name="CicloDia" type="Node" parent="SistemaSol"]
 script = ExtResource("3_e2xqd")
 hora = 17.0
 pausado = true
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=1660549695]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol"]
 environment = SubResource("Entorno")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=1023321303]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol"]
 transform = Transform3D(1, 0, 0, 0, -0.9659258, 0.25881913, 0, -0.25881913, -0.9659258, 0, 6, 0)
 shadow_enabled = true
 shadow_bias = 3.0
 shadow_normal_bias = 6.0
 
-[node name="LuzParpadeante" type="OmniLight3D" parent="." unique_id=1498922195]
+; Luces de ambientación neón azul a lo largo de la pista
+[node name="Luz1" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 2.5, -3)
 light_color = Color(0, 0.8980392, 1, 1)
 omni_range = 8.0
@@ -157,22 +596,61 @@ script = ExtResource("4_4bgqf")
 energia_base = 3.0
 amplitud = 0.25
 
-[node name="EsferaBrillo" type="MeshInstance3D" parent="." unique_id=1381626993]
+[node name="Luz2" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 4.5, -45)
+light_color = Color(0, 0.8980392, 1, 1)
+omni_range = 9.0
+omni_attenuation = 2.0
+script = ExtResource("4_4bgqf")
+energia_base = 3.0
+amplitud = 0.25
+
+[node name="Luz3" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 6.0, -85)
+light_color = Color(0, 0.8980392, 1, 1)
+omni_range = 10.0
+omni_attenuation = 2.0
+script = ExtResource("4_4bgqf")
+energia_base = 3.5
+amplitud = 0.25
+
+[node name="Luz4" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 2.5, -160)
+light_color = Color(0, 0.8980392, 1, 1)
+omni_range = 8.0
+omni_attenuation = 2.0
+script = ExtResource("4_4bgqf")
+energia_base = 3.0
+amplitud = 0.25
+
+; Decoración original
+[node name="EsferaBrillo" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0.5, 7.5)
 mesh = SubResource("BrilloMalla")
 
-[node name="Personaje" parent="." unique_id=843810207 instance=ExtResource("5_toaxk")]
+; =========================================================
+; PERSONAJE (JUGADOR)
+; Inicia en la recta de salida a Z=11 mirando hacia -Z
+; =========================================================
+[node name="Personaje" parent="." groups=["jugador"] instance=ExtResource("5_toaxk")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
 
-[node name="FaroIzq" type="SpotLight3D" parent="Personaje" unique_id=1327449027]
+[node name="FaroIzq" type="SpotLight3D" parent="Personaje"]
 light_color = Color(1, 0.92941177, 0.7019608, 1)
 light_energy = 2.5
 spot_angle = 30.0
 script = ExtResource("6_e2xqd")
 lado = -1.0
 
-[node name="FaroDer" type="SpotLight3D" parent="Personaje" unique_id=413107024]
+[node name="FaroDer" type="SpotLight3D" parent="Personaje"]
 light_color = Color(1, 0.92941177, 0.7019608, 1)
 light_energy = 2.5
 spot_angle = 30.0
 script = ExtResource("6_e2xqd")
+
+; =========================================================
+; RIVAL (IA que corre por el circuito recto hacia la meta)
+; =========================================================
+[node name="Rival" parent="." instance=ExtResource("10_rival_scene")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, 11)
+ruta = Array[Vector3]([Vector3(0, 0, 0), Vector3(0, 0, -18), Vector3(0, 1.75, -37.5), Vector3(0, 3.5, -58), Vector3(-2, 3.5, -85), Vector3(2, 3.5, -105), Vector3(0, 1.75, -132.5), Vector3(0, 0, -155), Vector3(0, 0, -180)])

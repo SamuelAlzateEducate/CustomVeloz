@@ -59,7 +59,14 @@ func _physics_process(delta):
 	velocity.z = avance.z + empuje.z
 	
 	if direction.length() > 0:
-		basis = Basis.looking_at(direction)
+		var n = get_floor_normal() if is_on_floor() else Vector3.UP
+		if n.y < 0.2:
+			n = Vector3.UP
+		var fwd = (direction - n * direction.dot(n)).normalized()
+		if fwd.length_squared() > 0.001:
+			basis = Basis.looking_at(fwd, n)
+		else:
+			basis = Basis.looking_at(direction)
 	
 	move_and_slide()
 	
