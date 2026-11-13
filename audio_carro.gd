@@ -360,11 +360,8 @@ func cambiar_marcha(nueva: int, subiendo: bool) -> void:
 		sonido_cambio.pitch_scale = randf_range(0.96, 1.08)
 		sonido_cambio.play()
 	
-	# Explosión deportiva en marchas altas (3ra en adelante)
-	if subiendo and marcha_actual >= 3 and randf() > 0.35:
-		disparar_pop_als(1.10, 1.35, -2.5)
-	elif not subiendo and marcha_actual >= 3 and randf() > 0.5:
-		disparar_pop_als(0.95, 1.15, -3.5)
+	# Sin pops en los cambios de marcha: sonaban como "pedos" al azar.
+	# Los pops solo salen al soltar el acelerador a alta velocidad (anti-lag).
 
 func disparar_pop_als(p_min: float = 1.0, p_max: float = 1.30, vol_offset: float = 0.0) -> void:
 	if lista_pops.is_empty():
