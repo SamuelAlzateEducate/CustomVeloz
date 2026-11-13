@@ -35,17 +35,24 @@ const VELOCIDAD_MARCHAS = [
 # Tono (pitch) de entrada y salida por marcha:
 # Al cambiar de marcha se percibe una caída de tono pronunciada y natural
 const PITCH_MARCHAS = [
-	Vector2(0.72, 1.48),  # 1ra: inicia grave (0.72) y ruge hasta 1.48
-	Vector2(0.88, 1.58),  # 2da: cae a 0.88 y estira hasta 1.58
-	Vector2(1.02, 1.70),  # 3ra: cae a 1.02 y estira hasta 1.70
-	Vector2(1.15, 1.80),  # 4ta: cae a 1.15 y empuja en crucero
-	Vector2(1.28, 1.95),  # 5ta: Nitro
-	Vector2(1.40, 2.20)   # 6ta: Nitro tope
+	Vector2(0.55, 0.88),  # 1ra
+	Vector2(0.62, 0.92),  # 2da
+	Vector2(0.66, 0.95),  # 3ra
+	Vector2(0.68, 0.97),  # 4ta
+	Vector2(0.70, 0.99),  # 5ta: Nitro
+	Vector2(0.72, 1.00)   # 6ta: Nitro tope
 ]
+# Cada marcha termina un poco más grave y la siguiente arranca ~10% más abajo:
+# el tono ya no pega un salto grande al cambiar.
+const PITCH_MAXIMO := 1.0
+
+# Duración del cambio de marcha (el "bache" de volumen/tono es una curva suave)
+const DURACION_CAMBIO := 0.30
 
 @onready var pj: CharacterBody3D = get_parent()
 
 var motor_rev: AudioStreamPlayer
+var filtro_motor: AudioEffectLowPassFilter
 var motor_idle: AudioStreamPlayer
 var derrape: AudioStreamPlayer
 var sonido_cambio: AudioStreamPlayer
@@ -55,6 +62,11 @@ var marcha_actual := 1
 var rpm := 0.20 # 0.0 a 1.0
 var acelerando_antes := false
 var tiempo_corte_cambio := 0.0
+
+# Sonido de ralentí/arranque: una vez al inicio, y en bucle solo con F en parado
+var idle_stream_unica: AudioStream
+var idle_stream_bucle: AudioStream
+var idle_en_bucle := false
 
 # Anti-lag (ALS)
 var pops_pendientes := 0
@@ -106,6 +118,25 @@ func _crear_reproductores() -> void:
 		if ResourceLoader.exists(path_base + "motor_loop.wav"):
 			motor_rev.stream = _configurar_stream_en_bucle(load(path_base + "motor_loop.wav"))
 			print("[audio_carro] fallback to motor_loop.wav")
+	# Bus propio del motor con filtro pasa-bajos: recorta los agudos chillones
+	var bus_idx := AudioServer.get_bus_index("MotorCarro")
+	if bus_idx == -1:
+		AudioServer.add_bus()
+		bus_idx = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bus_idx, "MotorCarro")
+		AudioServer.set_bus_send(bus_idx, "Master")
+		var filtro := AudioEffectLowPassFilter.new()
+		filtro.cutoff_hz = 3200.0
+		filtro.db = AudioEffectFilter.FILTER_24DB # corte más fuerte: quita el "chillido"
+		AudioServer.add_bus_effect(bus_idx, filtro)
+		# Limitador suave: evita que los picos del motor se distorsionen/saturen
+		var limitador := AudioEffectLimiter.new()
+		limitador.ceiling_db = -2.0
+		limitador.threshold_db = -6.0
+		limitador.soft_clip_db = 2.0
+		AudioServer.add_bus_effect(bus_idx, limitador)
+	filtro_motor = AudioServer.get_bus_effect(bus_idx, 0) as AudioEffectLowPassFilter
+	motor_rev.bus = "MotorCarro"
 	motor_rev.volume_db = -30.0
 	motor_rev.autoplay = false
 	add_child(motor_rev)
@@ -117,7 +148,9 @@ func _crear_reproductores() -> void:
 	motor_idle = AudioStreamPlayer.new()
 	motor_idle.name = "MotorIdle"
 	if ResourceLoader.exists(path_base + "motor_idle.wav"):
-		motor_idle.stream = _configurar_stream_en_bucle(load(path_base + "motor_idle.wav"))
+		idle_stream_unica = load(path_base + "motor_idle.wav") # sin bucle: suena una vez
+		idle_stream_bucle = _configurar_stream_en_bucle(load(path_base + "motor_idle.wav"))
+		motor_idle.stream = idle_stream_unica
 	motor_idle.volume_db = 0.0
 	motor_idle.autoplay = false
 	add_child(motor_idle)
@@ -128,7 +161,7 @@ func _crear_reproductores() -> void:
 	sonido_cambio.name = "SonidoCambio"
 	if ResourceLoader.exists(path_base + "cambio_marcha.wav"):
 		sonido_cambio.stream = load(path_base + "cambio_marcha.wav")
-	sonido_cambio.volume_db = 3.0
+	sonido_cambio.volume_db = -10.0
 	add_child(sonido_cambio)
 
 	# 4. Derrape / Chillido de neumáticos
@@ -177,8 +210,6 @@ func _physics_process(delta: float) -> void:
 	# Asegurar que los bucles nunca se detengan
 	if motor_rev and not motor_rev.playing:
 		motor_rev.play()
-	if motor_idle and not motor_idle.playing:
-		motor_idle.play()
 	if derrape and not derrape.playing:
 		derrape.play()
 
@@ -188,6 +219,7 @@ func _physics_process(delta: float) -> void:
 	var nitro = pj.corre if "corre" in pj else false
 	var direccion_giro = Input.get_axis("move_left", "move_right")
 	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
+	var tecla_f = tecla_derrape or Input.is_key_pressed(KEY_F)
 
 	# --- 1. GESTIÓN AUTOMÁTICA DE MARCHAS ---
 	if not modo_manual:
@@ -206,21 +238,25 @@ func _physics_process(delta: float) -> void:
 	var rpm_objetivo = 0.15
 	if acelerando:
 		# Respuesta inmediata del acelerador: sube revoluciones con fuerza
-		rpm_objetivo = lerpf(0.35, 1.0, ratio_vel)
+		# En marchas altas el motor "descansa" en crucero (no se queda al tope)
+		var rpm_tope := 1.0 if marcha_actual < 4 else 0.80
+		rpm_objetivo = lerpf(0.35, rpm_tope, ratio_vel)
 		if nitro:
-			rpm_objetivo = 1.15
+			rpm_objetivo = 0.92
 	elif frenando:
 		rpm_objetivo = maxf(0.10, ratio_vel * 0.40)
 	else:
 		# Al soltar el acelerador las revoluciones caen suavemente
 		rpm_objetivo = maxf(0.10, ratio_vel * 0.30)
 	
-	# Durante el corte de cambio de marcha, las RPM caen en picado
+	# Durante el cambio de marcha solo avanza el temporizador; el "bache" se
+	# aplica como curva suave (env_cambio) en tono y volumen, sin cortes bruscos.
+	var env_cambio := 0.0
 	if tiempo_corte_cambio > 0.0:
-		tiempo_corte_cambio -= delta
-		rpm_objetivo = lerpf(0.18, 0.35, ratio_vel * 0.5)
+		tiempo_corte_cambio = maxf(tiempo_corte_cambio - delta, 0.0)
+		env_cambio = sin(PI * (1.0 - tiempo_corte_cambio / DURACION_CAMBIO))
 
-	var tasa_rpm = 8.0 if tiempo_corte_cambio > 0.0 else (5.5 if acelerando else 2.5)
+	var tasa_rpm = 4.0 if tiempo_corte_cambio > 0.0 else (5.5 if acelerando else 2.5)
 	rpm = move_toward(rpm, rpm_objetivo, tasa_rpm * delta)
 
 	# --- 3. ANTI-LAG (ALS) CONTROLADO (CERO RUIDOS EN PARADO) ---
@@ -240,16 +276,21 @@ func _physics_process(delta: float) -> void:
 
 	# --- 4. TONO (PITCH SCALE) DEL MOTOR ---
 	var tonos_marcha = PITCH_MARCHAS[marcha_actual - 1]
-	var pitch_final = lerpf(tonos_marcha.x, tonos_marcha.y, rpm)
+	var pitch_final = lerpf(tonos_marcha.x, tonos_marcha.y, clampf(rpm, 0.0, 1.0))
 	
 	if nitro:
-		pitch_final *= 1.10
+		pitch_final *= 1.03
 	
-	# Descenso auditivo instantáneo al desacoplar embrague
-	if tiempo_corte_cambio > 0.0:
-		pitch_final *= 0.85
+	# Leve caída de tono al cambiar (suave, ida y vuelta)
+	pitch_final *= 1.0 - 0.06 * env_cambio
 	
+	pitch_final = minf(pitch_final, PITCH_MAXIMO)
 	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, clampf(delta * 20.0, 0.0, 1.0))
+
+	# Filtro dinámico: en marchas altas se cierra más para quitar el chillido/saturación
+	if filtro_motor:
+		var cutoff_obj := lerpf(3200.0, 2000.0, clampf((marcha_actual - 1) / 5.0, 0.0, 1.0))
+		filtro_motor.cutoff_hz = lerpf(filtro_motor.cutoff_hz, cutoff_obj, clampf(delta * 4.0, 0.0, 1.0))
 
 	# Ensure engine rev sound is playing when accelerating
 	if acelerando and not motor_rev.playing:
@@ -257,27 +298,50 @@ func _physics_process(delta: float) -> void:
 
 	var target_vol_rev = -32.0
 	if acelerando:
-		# En cuanto tocas W ruge con presencia inmediata (+2 dB)
-		target_vol_rev = 2.0 if not nitro else 4.0
+		# Presencia inmediata sin pasarse de 0 dB (evita saturar)
+		target_vol_rev = -1.0 if not nitro else 0.0
+		# En marchas altas el sonido se aprieta y satura: se baja un poco cada marcha
+		if marcha_actual > 3:
+			target_vol_rev -= (marcha_actual - 3) * 2.0
 	elif vel_h > 1.5:
 		# Retención y rodamiento a velocidad
 		target_vol_rev = lerpf(-12.0, -4.0, clampf(vel_h / 25.0, 0.0, 1.0))
 	
-	if tiempo_corte_cambio > 0.0:
-		target_vol_rev -= 6.0 # Corte de aceleración en el cambio
+	# Leve bajada de volumen en el cambio (máx. -2.5 dB, curva suave): el motor no se apaga
+	target_vol_rev -= 2.5 * env_cambio
 	
-	# Aplicar el volumen objetivo con suavizado (antes se calculaba pero nunca se usaba)
 	motor_rev.volume_db = lerpf(motor_rev.volume_db, target_vol_rev, clampf(delta * 15.0, 0.0, 1.0))
 
-	# Ralentí: presente en reposo (0 dB), se desvanece de inmediato al pisar gas (-30 dB)
-	var target_vol_idle = lerpf(0.0, -30.0, clampf((vel_h / 2.5) + (1.0 if acelerando else 0.0), 0.0, 1.0))
+	# Ralentí / sonido de arranque: solo suena (a) una vez al empezar y
+	# (b) cuando el carro está quieto y mantienes F (o la tecla de derrapar).
+	var quieto = vel_h < 1.5 and not acelerando
+	var target_vol_idle = -60.0
+	if quieto and tecla_f:
+		if not idle_en_bucle:
+			idle_en_bucle = true
+			motor_idle.stream = idle_stream_bucle
+			motor_idle.volume_db = -20.0
+			motor_idle.play()
+		elif not motor_idle.playing:
+			motor_idle.play()
+		target_vol_idle = 0.0
+	elif idle_en_bucle:
+		# Soltaste F o el carro se mueve: se apaga y se detiene
+		if motor_idle.volume_db < -50.0:
+			motor_idle.stop()
+			motor_idle.stream = idle_stream_unica
+			idle_en_bucle = false
+	elif quieto and motor_idle.playing:
+		target_vol_idle = 0.0 # sonido inicial, una sola vez
+	elif motor_idle.playing and motor_idle.volume_db < -50.0:
+		motor_idle.stop()
 	motor_idle.volume_db = lerpf(motor_idle.volume_db, target_vol_idle, clampf(delta * 12.0, 0.0, 1.0))
-	motor_idle.pitch_scale = lerpf(0.96, 1.06, rpm * 0.25)
+	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
 
 	# --- 6. CHILLIDO DE NEUMÁTICOS EN DERRAPES ---
 	var derrapando = (tecla_derrape and vel_h > 4.0) or (absf(direccion_giro) > 0.35 and vel_h > 12.0)
 	if derrapando and pj.is_on_floor():
-		var vol_skid = lerpf(-8.0, 4.0, clampf(vel_h / 25.0, 0.0, 1.0))
+		var vol_skid = lerpf(-14.0, -3.0, clampf(vel_h / 25.0, 0.0, 1.0))
 		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, clampf(delta * 18.0, 0.0, 1.0))
 		derrape.pitch_scale = lerpf(0.92, 1.22, clampf(vel_h / 25.0, 0.0, 1.0))
 	else:
@@ -288,7 +352,7 @@ func cambiar_marcha(nueva: int, subiendo: bool) -> void:
 		return
 	var marcha_previa = marcha_actual
 	marcha_actual = nueva
-	tiempo_corte_cambio = 0.12 # 120 ms de micro-corte
+	tiempo_corte_cambio = DURACION_CAMBIO
 	print("[audio_carro] CAMBIO DE MARCHA: ", marcha_previa, " -> ", marcha_actual, " (", "subiendo" if subiendo else "bajando", ") cuadro ", Engine.get_physics_frames())
 	
 	# Sonido mecánico auténtico de caja de cambios de rally
