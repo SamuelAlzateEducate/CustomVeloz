@@ -19,10 +19,6 @@ config/icon="res://icon.svg"
 
 MCPRuntime="*uid://c1uupb6u33myx"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
-
 [input]
 
 move_left={
