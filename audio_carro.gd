@@ -2,21 +2,45 @@ class_name AudioCarro
 extends Node
 
 ## Sistema de Sonido Realista de Rally para CustomVeloz
-## - Simulación de caja de cambios de 6 velocidades con subida y caída de RPM
-## - Motor agresivo y ronco con modulación dinámica de tono (pitch scale)
-## - Sistema Antilag (ALS) y explosiones de escape (pops and bangs) al soltar gas o cambiar de marcha
-## - Chillido de neumáticos en derrape (al girar fuerte o presionar barra espaciadora)
+## - Diseñado con las grabaciones reales de rally.mp3, rally-1-1.mp3 y rally-2.mp3
+## - Ralentí profundo y muscular en reposo (64 Hz)
+## - Rugido auténtico bajo carga al acelerar
+## - Progresión natural de marchas: 1ra, 2da y 3ra para aceleración contundente (0 a 90 km/h)
+## - 4ta de crucero y 5ta/6ta con modo Nitro (hasta 120+ km/h)
+## - Sonido mecánico de cambio secuencial (cambio_marcha.wav) con corte de inyección
+## - Cero ruidos extraños o 'pedos' en parado (anti-lag solo activo > 50 km/h en alta velocidad)
+## - Soporte para cambios manuales opcionales con la rueda del ratón
 
 @export var activar_sonido := true
+@export var modo_manual := false # false = automático (por defecto), true = control manual
 
-# 6 Velocidades (m/s): 25 m/s = 90 km/h, 33.3 m/s = 120 km/h (nitro)
+# Escalonamiento realista de velocidades (en m/s):
+# 1ra: 0 a 34 km/h (arranque con empuje largo y audible)
+# 2da: 29 a 61 km/h
+# 3ra: 54 a 86 km/h
+# 4ta: 79 a 102 km/h (crucero en velocidad máxima de base 90 km/h)
+# 5ta: 97 a 122 km/h (Modo Nitro)
+# 6ta: 115 a 140 km/h (Nitro a fondo)
+const REV_START_OFFSET = 2.5
+
 const VELOCIDAD_MARCHAS = [
-	Vector2(0.0, 6.0),    # 1ra: 0 a 22 km/h
-	Vector2(5.0, 11.0),   # 2da: 18 a 40 km/h
-	Vector2(9.5, 16.5),   # 3ra: 34 a 59 km/h
-	Vector2(15.0, 22.0),  # 4ta: 54 a 79 km/h
-	Vector2(20.5, 27.5),  # 5ta: 74 a 99 km/h
-	Vector2(26.0, 36.0)   # 6ta: 94 a 130 km/h
+	Vector2(0.0, 9.5),    # 1ra: 0 a 34 km/h
+	Vector2(8.0, 17.0),   # 2da: 29 a 61 km/h
+	Vector2(15.0, 24.0),  # 3ra: 54 a 86 km/h
+	Vector2(22.0, 28.5),  # 4ta: 79 a 102 km/h
+	Vector2(27.0, 34.0),  # 5ta: 97 a 122 km/h (Nitro)
+	Vector2(32.0, 40.0)   # 6ta: 115 a 144 km/h (Nitro máximo)
+]
+
+# Tono (pitch) de entrada y salida por marcha:
+# Al cambiar de marcha se percibe una caída de tono pronunciada y natural
+const PITCH_MARCHAS = [
+	Vector2(0.72, 1.48),  # 1ra: inicia grave (0.72) y ruge hasta 1.48
+	Vector2(0.88, 1.58),  # 2da: cae a 0.88 y estira hasta 1.58
+	Vector2(1.02, 1.70),  # 3ra: cae a 1.02 y estira hasta 1.70
+	Vector2(1.15, 1.80),  # 4ta: cae a 1.15 y empuja en crucero
+	Vector2(1.28, 1.95),  # 5ta: Nitro
+	Vector2(1.40, 2.20)   # 6ta: Nitro tope
 ]
 
 @onready var pj: CharacterBody3D = get_parent()
@@ -24,14 +48,15 @@ const VELOCIDAD_MARCHAS = [
 var motor_rev: AudioStreamPlayer
 var motor_idle: AudioStreamPlayer
 var derrape: AudioStreamPlayer
+var sonido_cambio: AudioStreamPlayer
 var lista_pops: Array[AudioStreamPlayer] = []
 
 var marcha_actual := 1
-var rpm := 0.15 # 0.0 a 1.0 (ralentí a línea roja)
+var rpm := 0.20 # 0.0 a 1.0
 var acelerando_antes := false
 var tiempo_corte_cambio := 0.0
 
-# Ráfagas de antilag (ALS)
+# Anti-lag (ALS)
 var pops_pendientes := 0
 var temporizador_pop := 0.0
 
@@ -39,49 +64,86 @@ func _ready() -> void:
 	if not activar_sonido:
 		set_physics_process(false)
 		return
-	
 	_crear_reproductores()
+
+func _wav_en_bucle(stream: AudioStreamWAV) -> AudioStreamWAV:
+	# loop_end = -1 solo sirve en el importador; en runtime hay que poner el
+	# final real en muestras, si no el bucle queda roto y no suena nada.
+	var s := stream.duplicate() as AudioStreamWAV
+	var muestras := int(round(s.get_length() * float(s.mix_rate)))
+	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	s.loop_begin = 0
+	s.loop_end = maxi(muestras, 1)
+	return s
+
+func _configurar_stream_en_bucle(stream: Resource) -> Resource:
+	if stream is AudioStreamWAV:
+		return _wav_en_bucle(stream)
+	elif stream is AudioStreamMP3:
+		stream.loop = true
+	elif stream is AudioStreamOggVorbis:
+		stream.loop = true
+	return stream
 
 func _crear_reproductores() -> void:
 	var path_base = "res://Sonidos_Carros/CarroRally_Personaje/"
 	
-	# 1. Motor acelerando (loop continuo)
+	# 1. Motor acelerando (loop continuo con la grabación real de aceleración)
 	motor_rev = AudioStreamPlayer.new()
 	motor_rev.name = "MotorRev"
-	if ResourceLoader.exists(path_base + "motor_loop.wav"):
-		motor_rev.stream = load(path_base + "motor_loop.wav")
-	elif ResourceLoader.exists(path_base + "rally-1-1.mp3"):
-		motor_rev.stream = load(path_base + "rally-1-1.mp3")
-	motor_rev.volume_db = -80.0
+	var rev_path = path_base + "motor_rev.wav"
+	if ResourceLoader.exists(rev_path):
+		var rev_stream = load(rev_path)
+		if rev_stream is AudioStreamWAV:
+			motor_rev.stream = _wav_en_bucle(rev_stream)
+			print("[audio_carro] motor_rev WAV cargado con bucle, muestras: ", motor_rev.stream.loop_end)
+		else:
+			motor_rev.stream = rev_stream
+			print("[audio_carro] motor_rev loaded (non‑WAV)" )
+	else:
+		push_error("[audio_carro] motor_rev.wav not found at " + rev_path)
+		# fallback to the original loop file to avoid crash
+		if ResourceLoader.exists(path_base + "motor_loop.wav"):
+			motor_rev.stream = _configurar_stream_en_bucle(load(path_base + "motor_loop.wav"))
+			print("[audio_carro] fallback to motor_loop.wav")
+	motor_rev.volume_db = -30.0
 	motor_rev.autoplay = false
 	add_child(motor_rev)
-	motor_rev.play()
+	# se reproducirá al acelerar
 
-	# 2. Motor ralentí (idle)
+
+
+	# 2. Motor ralentí (loop continuo con la grabación real de ralentí 64 Hz)
 	motor_idle = AudioStreamPlayer.new()
 	motor_idle.name = "MotorIdle"
 	if ResourceLoader.exists(path_base + "motor_idle.wav"):
-		motor_idle.stream = load(path_base + "motor_idle.wav")
-	elif ResourceLoader.exists(path_base + "rally.mp3"):
-		motor_idle.stream = load(path_base + "rally.mp3")
-	motor_idle.volume_db = -3.0
+		motor_idle.stream = _configurar_stream_en_bucle(load(path_base + "motor_idle.wav"))
+	motor_idle.volume_db = 0.0
 	motor_idle.autoplay = false
 	add_child(motor_idle)
 	motor_idle.play()
 
-	# 3. Derrape / Skid de neumáticos
+	# 3. Sonido mecánico de cambio de marcha (clack de transmisión secuencial de rally)
+	sonido_cambio = AudioStreamPlayer.new()
+	sonido_cambio.name = "SonidoCambio"
+	if ResourceLoader.exists(path_base + "cambio_marcha.wav"):
+		sonido_cambio.stream = load(path_base + "cambio_marcha.wav")
+	sonido_cambio.volume_db = 3.0
+	add_child(sonido_cambio)
+
+	# 4. Derrape / Chillido de neumáticos
 	derrape = AudioStreamPlayer.new()
 	derrape.name = "Derrape"
 	if ResourceLoader.exists(path_base + "derrape_loop.wav"):
-		derrape.stream = load(path_base + "derrape_loop.wav")
+		derrape.stream = _configurar_stream_en_bucle(load(path_base + "derrape_loop.wav"))
 	elif ResourceLoader.exists(path_base + "Derrape_Rally.mp3"):
-		derrape.stream = load(path_base + "Derrape_Rally.mp3")
+		derrape.stream = _configurar_stream_en_bucle(load(path_base + "Derrape_Rally.mp3"))
 	derrape.volume_db = -80.0
 	derrape.autoplay = false
 	add_child(derrape)
 	derrape.play()
 
-	# 4. Banco de explosiones / pops de escape (ALS)
+	# 5. Banco de detonaciones de escape (Anti-Lag ALS)
 	for i in range(1, 6):
 		var p_path = path_base + "pop_als_%d.wav" % i
 		if ResourceLoader.exists(p_path):
@@ -92,10 +154,34 @@ func _crear_reproductores() -> void:
 			add_child(p)
 			lista_pops.append(p)
 
+func _unhandled_input(event: InputEvent) -> void:
+	# Soporte opcional para hacer los cambios con la rueda del ratón
+	if event is InputEventMouseButton and event.is_pressed():
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			subir_marcha_manual()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			bajar_marcha_manual()
+
+func subir_marcha_manual() -> void:
+	if marcha_actual < 6:
+		cambiar_marcha(marcha_actual + 1, true)
+
+func bajar_marcha_manual() -> void:
+	if marcha_actual > 1:
+		cambiar_marcha(marcha_actual - 1, false)
+
 func _physics_process(delta: float) -> void:
 	if not pj:
 		return
 	
+	# Asegurar que los bucles nunca se detengan
+	if motor_rev and not motor_rev.playing:
+		motor_rev.play()
+	if motor_idle and not motor_idle.playing:
+		motor_idle.play()
+	if derrape and not derrape.playing:
+		derrape.play()
+
 	var vel_h = Vector2(pj.velocity.x, pj.velocity.z).length()
 	var acelerando = Input.is_action_pressed("move_up")
 	var frenando = Input.is_action_pressed("move_down")
@@ -103,100 +189,124 @@ func _physics_process(delta: float) -> void:
 	var direccion_giro = Input.get_axis("move_left", "move_right")
 	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 
-	# --- 1. SIMULACIÓN DE MARCHAS (1 a 6) ---
-	var rango = VELOCIDAD_MARCHAS[marcha_actual - 1]
-	
-	# Subir de marcha (Upshift)
-	if marcha_actual < 6 and vel_h > rango.y:
-		cambiar_marcha(marcha_actual + 1, true)
-	# Reducir de marcha (Downshift)
-	elif marcha_actual > 1 and vel_h < rango.x - 1.0:
-		cambiar_marcha(marcha_actual - 1, false)
+	# --- 1. GESTIÓN AUTOMÁTICA DE MARCHAS ---
+	if not modo_manual:
+		var rango = VELOCIDAD_MARCHAS[marcha_actual - 1]
+		# Subir de marcha al estirar la velocidad actual acelerando
+		if marcha_actual < 6 and vel_h > rango.y and acelerando:
+			cambiar_marcha(marcha_actual + 1, true)
+		# Reducir marcha al desacelerar
+		elif marcha_actual > 1 and vel_h < rango.x - 1.2 and not acelerando:
+			cambiar_marcha(marcha_actual - 1, false)
 
-	# --- 2. CÁLCULO DE RPM Y RÉGIMEN DE REVOLUCIONES ---
-	rango = VELOCIDAD_MARCHAS[marcha_actual - 1]
-	var ratio_vel = clampf((vel_h - rango.x) / maxf(0.1, rango.y - rango.x), 0.0, 1.0)
+	# --- 2. RÉGIMEN DE RPM Y SUBIDA/CAÍDA DINÁMICA ---
+	var rango_act = VELOCIDAD_MARCHAS[marcha_actual - 1]
+	var ratio_vel = clampf((vel_h - rango_act.x) / maxf(0.5, rango_act.y - rango_act.x), 0.0, 1.0)
 	
 	var rpm_objetivo = 0.15
 	if acelerando:
-		rpm_objetivo = lerpf(0.40, 1.0, ratio_vel)
+		# Respuesta inmediata del acelerador: sube revoluciones con fuerza
+		rpm_objetivo = lerpf(0.35, 1.0, ratio_vel)
 		if nitro:
-			rpm_objetivo = 1.18 # Sobrealimentación con nitro
+			rpm_objetivo = 1.15
 	elif frenando:
-		rpm_objetivo = maxf(0.15, ratio_vel * 0.6)
+		rpm_objetivo = maxf(0.10, ratio_vel * 0.40)
 	else:
-		# Al soltar el acelerador las RPM caen
-		rpm_objetivo = maxf(0.15, ratio_vel * 0.45)
+		# Al soltar el acelerador las revoluciones caen suavemente
+		rpm_objetivo = maxf(0.10, ratio_vel * 0.30)
 	
-	var tasa_rpm = 4.2 if acelerando else 2.6
+	# Durante el corte de cambio de marcha, las RPM caen en picado
+	if tiempo_corte_cambio > 0.0:
+		tiempo_corte_cambio -= delta
+		rpm_objetivo = lerpf(0.18, 0.35, ratio_vel * 0.5)
+
+	var tasa_rpm = 8.0 if tiempo_corte_cambio > 0.0 else (5.5 if acelerando else 2.5)
 	rpm = move_toward(rpm, rpm_objetivo, tasa_rpm * delta)
 
-	# --- 3. DETECCIÓN DE SOLTADA DE GAS -> ANTILAG (ALS) / POPS & BANGS ---
-	if acelerando_antes and not acelerando and rpm > 0.45:
+	# --- 3. ANTI-LAG (ALS) CONTROLADO (CERO RUIDOS EN PARADO) ---
+	# Solo a alta velocidad (> 50 km/h = 14 m/s) en 3ra marcha o superior
+	if acelerando_antes and not acelerando and rpm > 0.65 and vel_h > 14.0 and marcha_actual >= 3:
 		pops_pendientes = randi_range(2, 4)
-		temporizador_pop = randf_range(0.04, 0.10)
+		temporizador_pop = randf_range(0.04, 0.09)
 
 	acelerando_antes = acelerando
 
-	# Procesar ráfaga de explosiones ALS
 	if pops_pendientes > 0:
 		temporizador_pop -= delta
 		if temporizador_pop <= 0.0:
-			disparar_pop_als()
+			disparar_pop_als(1.05, 1.30, -2.0)
 			pops_pendientes -= 1
-			temporizador_pop = randf_range(0.11, 0.19)
+			temporizador_pop = randf_range(0.08, 0.15)
 
-	# --- 4. MODULACIÓN DE TONO Y VOLUMEN DEL MOTOR ---
-	if tiempo_corte_cambio > 0.0:
-		tiempo_corte_cambio -= delta
-
-	# Tono (Pitch Scale): desde 0.85 (ralentí ronco) hasta 1.82 (rugido a tope)
-	var pitch_final = lerpf(0.85, 1.82, rpm)
+	# --- 4. TONO (PITCH SCALE) DEL MOTOR ---
+	var tonos_marcha = PITCH_MARCHAS[marcha_actual - 1]
+	var pitch_final = lerpf(tonos_marcha.x, tonos_marcha.y, rpm)
+	
 	if nitro:
-		pitch_final = 2.10
+		pitch_final *= 1.10
+	
+	# Descenso auditivo instantáneo al desacoplar embrague
 	if tiempo_corte_cambio > 0.0:
-		pitch_final *= 0.87 # Caída momentánea en el cambio de marcha
+		pitch_final *= 0.85
+	
+	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, clampf(delta * 20.0, 0.0, 1.0))
 
-	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, delta * 14.0)
+	# Ensure engine rev sound is playing when accelerating
+	if acelerando and not motor_rev.playing:
+		motor_rev.play()
 
-	# Control de volumen
-	var factor_carga = clampf((vel_h / 5.0) + (0.45 if acelerando else 0.0), 0.0, 1.0)
-	var vol_rev_db = lerpf(-22.0, 1.0, factor_carga)
+	var target_vol_rev = -32.0
 	if acelerando:
-		vol_rev_db += 2.0
-	if nitro:
-		vol_rev_db += 3.5
-	motor_rev.volume_db = lerpf(motor_rev.volume_db, vol_rev_db, delta * 12.0)
+		# En cuanto tocas W ruge con presencia inmediata (+2 dB)
+		target_vol_rev = 2.0 if not nitro else 4.0
+	elif vel_h > 1.5:
+		# Retención y rodamiento a velocidad
+		target_vol_rev = lerpf(-12.0, -4.0, clampf(vel_h / 25.0, 0.0, 1.0))
+	
+	if tiempo_corte_cambio > 0.0:
+		target_vol_rev -= 6.0 # Corte de aceleración en el cambio
+	
+	# Aplicar el volumen objetivo con suavizado (antes se calculaba pero nunca se usaba)
+	motor_rev.volume_db = lerpf(motor_rev.volume_db, target_vol_rev, clampf(delta * 15.0, 0.0, 1.0))
 
-	# Ralentí (suena más cuando el auto está detenido o a muy baja velocidad)
-	var vol_idle_db = lerpf(0.0, -36.0, factor_carga)
-	motor_idle.volume_db = lerpf(motor_idle.volume_db, vol_idle_db, delta * 8.0)
-	motor_idle.pitch_scale = lerpf(0.95, 1.10, rpm * 0.4)
+	# Ralentí: presente en reposo (0 dB), se desvanece de inmediato al pisar gas (-30 dB)
+	var target_vol_idle = lerpf(0.0, -30.0, clampf((vel_h / 2.5) + (1.0 if acelerando else 0.0), 0.0, 1.0))
+	motor_idle.volume_db = lerpf(motor_idle.volume_db, target_vol_idle, clampf(delta * 12.0, 0.0, 1.0))
+	motor_idle.pitch_scale = lerpf(0.96, 1.06, rpm * 0.25)
 
-	# --- 5. AUDIO DE DERRAPE (CHILLIDO DE NEUMÁTICOS) ---
-	var derrapando = (tecla_derrape and vel_h > 4.0) or (absf(direccion_giro) > 0.35 and vel_h > 11.0)
+	# --- 6. CHILLIDO DE NEUMÁTICOS EN DERRAPES ---
+	var derrapando = (tecla_derrape and vel_h > 4.0) or (absf(direccion_giro) > 0.35 and vel_h > 12.0)
 	if derrapando and pj.is_on_floor():
-		var vol_skid = lerpf(-12.0, 3.0, clampf(vel_h / 25.0, 0.0, 1.0))
-		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, delta * 16.0)
-		derrape.pitch_scale = lerpf(0.92, 1.20, clampf(vel_h / 25.0, 0.0, 1.0))
+		var vol_skid = lerpf(-8.0, 4.0, clampf(vel_h / 25.0, 0.0, 1.0))
+		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, clampf(delta * 18.0, 0.0, 1.0))
+		derrape.pitch_scale = lerpf(0.92, 1.22, clampf(vel_h / 25.0, 0.0, 1.0))
 	else:
-		derrape.volume_db = lerpf(derrape.volume_db, -80.0, delta * 10.0)
+		derrape.volume_db = lerpf(derrape.volume_db, -80.0, clampf(delta * 12.0, 0.0, 1.0))
 
 func cambiar_marcha(nueva: int, subiendo: bool) -> void:
+	if nueva == marcha_actual:
+		return
+	var marcha_previa = marcha_actual
 	marcha_actual = nueva
-	tiempo_corte_cambio = 0.08
+	tiempo_corte_cambio = 0.12 # 120 ms de micro-corte
+	print("[audio_carro] CAMBIO DE MARCHA: ", marcha_previa, " -> ", marcha_actual, " (", "subiendo" if subiendo else "bajando", ") cuadro ", Engine.get_physics_frames())
 	
-	if subiendo:
-		disparar_pop_als(0.95, 1.15)
-	else:
-		if randf() > 0.35:
-			disparar_pop_als(0.85, 1.05)
+	# Sonido mecánico auténtico de caja de cambios de rally
+	if sonido_cambio:
+		sonido_cambio.pitch_scale = randf_range(0.96, 1.08)
+		sonido_cambio.play()
+	
+	# Explosión deportiva en marchas altas (3ra en adelante)
+	if subiendo and marcha_actual >= 3 and randf() > 0.35:
+		disparar_pop_als(1.10, 1.35, -2.5)
+	elif not subiendo and marcha_actual >= 3 and randf() > 0.5:
+		disparar_pop_als(0.95, 1.15, -3.5)
 
-func disparar_pop_als(p_min: float = 0.88, p_max: float = 1.18) -> void:
+func disparar_pop_als(p_min: float = 1.0, p_max: float = 1.30, vol_offset: float = 0.0) -> void:
 	if lista_pops.is_empty():
 		return
 	var p = lista_pops.pick_random()
 	if p:
 		p.pitch_scale = randf_range(p_min, p_max)
-		p.volume_db = randf_range(0.0, 4.0)
+		p.volume_db = randf_range(-1.0, 2.5) + vol_offset
 		p.play()
