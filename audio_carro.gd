@@ -49,6 +49,11 @@ const PITCH_MAXIMO := 1.0
 # Duración del cambio de marcha (el "bache" de volumen/tono es una curva suave)
 const DURACION_CAMBIO := 0.30
 
+# Sonido del cambio (cambio_marcha.wav): ajusta aquí para suavizarlo más o menos
+const VOL_CAMBIO := -10.0           # volumen (más negativo = más bajito)
+const CORTE_AGUDOS_CAMBIO := 1800.0 # Hz: más bajo = más sordo y menos "metálico"
+const FADE_IN_CAMBIO := 0.04        # s: más alto = ataque menos seco
+
 @onready var pj: CharacterBody3D = get_parent()
 
 var motor_rev: AudioStreamPlayer
@@ -161,7 +166,19 @@ func _crear_reproductores() -> void:
 	sonido_cambio.name = "SonidoCambio"
 	if ResourceLoader.exists(path_base + "cambio_marcha.wav"):
 		sonido_cambio.stream = load(path_base + "cambio_marcha.wav")
-	sonido_cambio.volume_db = -10.0
+	sonido_cambio.volume_db = VOL_CAMBIO
+	# Bus propio del cambio: filtro pasa-bajos para quitar lo metálico/duro del golpe
+	var bus_cambio_idx := AudioServer.get_bus_index("CambioCarro")
+	if bus_cambio_idx == -1:
+		AudioServer.add_bus()
+		bus_cambio_idx = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bus_cambio_idx, "CambioCarro")
+		AudioServer.set_bus_send(bus_cambio_idx, "Master")
+		var filtro_cambio := AudioEffectLowPassFilter.new()
+		filtro_cambio.cutoff_hz = CORTE_AGUDOS_CAMBIO
+		filtro_cambio.db = AudioEffectFilter.FILTER_24DB
+		AudioServer.add_bus_effect(bus_cambio_idx, filtro_cambio)
+	sonido_cambio.bus = "CambioCarro"
 	add_child(sonido_cambio)
 
 	# 4. Derrape / Chillido de neumáticos
@@ -355,10 +372,16 @@ func cambiar_marcha(nueva: int, subiendo: bool) -> void:
 	tiempo_corte_cambio = DURACION_CAMBIO
 	print("[audio_carro] CAMBIO DE MARCHA: ", marcha_previa, " -> ", marcha_actual, " (", "subiendo" if subiendo else "bajando", ") cuadro ", Engine.get_physics_frames())
 	
-	# Sonido mecánico auténtico de caja de cambios de rally
-	if sonido_cambio:
-		sonido_cambio.pitch_scale = randf_range(0.96, 1.08)
+	# Sonido mecánico de caja de cambios, suavizado: tono más grave + fade-in/out cortos
+	if sonido_cambio and sonido_cambio.stream:
+		sonido_cambio.pitch_scale = randf_range(0.84, 0.92)
+		sonido_cambio.volume_db = -35.0
 		sonido_cambio.play()
+		var tw := create_tween()
+		tw.tween_property(sonido_cambio, "volume_db", VOL_CAMBIO, FADE_IN_CAMBIO)
+		var duracion := sonido_cambio.stream.get_length() / sonido_cambio.pitch_scale
+		tw.tween_interval(maxf(duracion - FADE_IN_CAMBIO - 0.12, 0.0))
+		tw.tween_property(sonido_cambio, "volume_db", -40.0, 0.12)
 	
 	# Sin pops en los cambios de marcha: sonaban como "pedos" al azar.
 	# Los pops solo salen al soltar el acelerador a alta velocidad (anti-lag).
