@@ -77,6 +77,14 @@ var idle_en_bucle := false
 var pops_pendientes := 0
 var temporizador_pop := 0.0
 
+# Protección contra choques: sin pops tras un golpe brusco ni cambios de marcha en ráfaga
+var vel_h_previa := 0.0
+var vel_suave := 0.0 # velocidad filtrada: los giros no tumban el tono del motor
+var tiempo_giro_sostenido := 0.0
+var bloqueo_pops := 0.0
+var tiempo_desde_cambio := 99.0
+const ENFRIAMIENTO_CAMBIO := 0.5 # s mínimos entre cambios automáticos
+
 func _ready() -> void:
 	if not activar_sonido:
 		set_physics_process(false)
@@ -238,19 +246,29 @@ func _physics_process(delta: float) -> void:
 	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 	var tecla_f = tecla_derrape or Input.is_key_pressed(KEY_F)
 
+	# Detección de choque: la velocidad cae de golpe (> 4 m/s en un cuadro)
+	var choque: bool = (vel_h_previa - float(vel_h)) > 4.0
+	vel_h_previa = float(vel_h)
+	vel_suave = lerpf(vel_suave, float(vel_h), clampf(delta * 3.0, 0.0, 1.0))
+	if choque:
+		bloqueo_pops = 0.6
+		pops_pendientes = 0
+	bloqueo_pops = maxf(bloqueo_pops - delta, 0.0)
+	tiempo_desde_cambio += delta
+
 	# --- 1. GESTIÓN AUTOMÁTICA DE MARCHAS ---
 	if not modo_manual:
 		var rango = VELOCIDAD_MARCHAS[marcha_actual - 1]
 		# Subir de marcha al estirar la velocidad actual acelerando
-		if marcha_actual < 6 and vel_h > rango.y and acelerando:
+		if marcha_actual < 6 and vel_h > rango.y and acelerando and tiempo_desde_cambio > ENFRIAMIENTO_CAMBIO:
 			cambiar_marcha(marcha_actual + 1, true)
 		# Reducir marcha al desacelerar
-		elif marcha_actual > 1 and vel_h < rango.x - 1.2 and not acelerando:
+		elif marcha_actual > 1 and vel_h < rango.x - 1.2 and not acelerando and tiempo_desde_cambio > ENFRIAMIENTO_CAMBIO:
 			cambiar_marcha(marcha_actual - 1, false)
 
 	# --- 2. RÉGIMEN DE RPM Y SUBIDA/CAÍDA DINÁMICA ---
 	var rango_act = VELOCIDAD_MARCHAS[marcha_actual - 1]
-	var ratio_vel = clampf((vel_h - rango_act.x) / maxf(0.5, rango_act.y - rango_act.x), 0.0, 1.0)
+	var ratio_vel = clampf((vel_suave - rango_act.x) / maxf(0.5, rango_act.y - rango_act.x), 0.0, 1.0)
 	
 	var rpm_objetivo = 0.15
 	if acelerando:
@@ -274,11 +292,13 @@ func _physics_process(delta: float) -> void:
 		env_cambio = sin(PI * (1.0 - tiempo_corte_cambio / DURACION_CAMBIO))
 
 	var tasa_rpm = 4.0 if tiempo_corte_cambio > 0.0 else (5.5 if acelerando else 2.5)
+	if acelerando and rpm_objetivo < rpm and tiempo_corte_cambio <= 0.0:
+		tasa_rpm = 1.5 # acelerando, las revoluciones solo bajan despacio (sin "tirones" al girar)
 	rpm = move_toward(rpm, rpm_objetivo, tasa_rpm * delta)
 
 	# --- 3. ANTI-LAG (ALS) CONTROLADO (CERO RUIDOS EN PARADO) ---
 	# Solo a alta velocidad (> 50 km/h = 14 m/s) en 3ra marcha o superior
-	if acelerando_antes and not acelerando and rpm > 0.65 and vel_h > 14.0 and marcha_actual >= 3:
+	if acelerando_antes and not acelerando and rpm > 0.65 and vel_h > 14.0 and marcha_actual >= 3 and bloqueo_pops <= 0.0:
 		pops_pendientes = randi_range(2, 4)
 		temporizador_pop = randf_range(0.04, 0.09)
 
@@ -302,7 +322,7 @@ func _physics_process(delta: float) -> void:
 	pitch_final *= 1.0 - 0.06 * env_cambio
 	
 	pitch_final = minf(pitch_final, PITCH_MAXIMO)
-	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, clampf(delta * 20.0, 0.0, 1.0))
+	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, clampf(delta * 12.0, 0.0, 1.0))
 
 	# Filtro dinámico: en marchas altas se cierra más para quitar el chillido/saturación
 	if filtro_motor:
@@ -356,10 +376,16 @@ func _physics_process(delta: float) -> void:
 	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
 
 	# --- 6. CHILLIDO DE NEUMÁTICOS EN DERRAPES ---
-	var derrapando = (tecla_derrape and vel_h > 4.0) or (absf(direccion_giro) > 0.35 and vel_h > 12.0)
+	# El chillido por giro solo suena si el giro es fuerte y sostenido (> 0.35 s);
+	# así el zigzag rápido no genera ráfagas cortas que suenan a "pedito".
+	if absf(direccion_giro) > 0.6 and vel_h > 12.0:
+		tiempo_giro_sostenido += delta
+	else:
+		tiempo_giro_sostenido = 0.0
+	var derrapando = (tecla_derrape and vel_h > 4.0) or tiempo_giro_sostenido > 0.35
 	if derrapando and pj.is_on_floor():
 		var vol_skid = lerpf(-14.0, -3.0, clampf(vel_h / 25.0, 0.0, 1.0))
-		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, clampf(delta * 18.0, 0.0, 1.0))
+		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, clampf(delta * 7.0, 0.0, 1.0))
 		derrape.pitch_scale = lerpf(0.92, 1.22, clampf(vel_h / 25.0, 0.0, 1.0))
 	else:
 		derrape.volume_db = lerpf(derrape.volume_db, -80.0, clampf(delta * 12.0, 0.0, 1.0))
@@ -370,6 +396,7 @@ func cambiar_marcha(nueva: int, subiendo: bool) -> void:
 	var marcha_previa = marcha_actual
 	marcha_actual = nueva
 	tiempo_corte_cambio = DURACION_CAMBIO
+	tiempo_desde_cambio = 0.0
 	print("[audio_carro] CAMBIO DE MARCHA: ", marcha_previa, " -> ", marcha_actual, " (", "subiendo" if subiendo else "bajando", ") cuadro ", Engine.get_physics_frames())
 	
 	# Sonido mecánico de caja de cambios, suavizado: tono más grave + fade-in/out cortos
