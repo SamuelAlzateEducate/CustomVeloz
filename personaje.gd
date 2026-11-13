@@ -16,6 +16,16 @@ const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
 @export_enum("Ninguna", "Avanzar 60 cuadros", "Avanzar 60 y soltar", "Avanzar y la acción desde el cuadro 30", "Mantener la acción 2 s", "Avanzar con la acción 60 cuadros", "Diagonal W+D 60 cuadros") var prueba: String = "Ninguna"
 @export var accion_prueba = ""
 
+# ---- Ajustes de Manejo e Interpolación del Carro ----
+@export_group("Manejo e Interpolación")
+@export var velocidad_giro: float = 2.4 # Radianes/s de rotación al voltear
+@export var suavizado_volante: float = 12.0 # Factor de interpolación (lerpf) para la dirección
+@export var max_angulo_ruedas: float = 0.50 # ~28° ángulo máximo de dirección de ruedas
+@export var agarre_lateral: float = 8.0 # Factor de interpolación (lerpf) para agarre en curvas
+@export var agarre_derrape: float = 2.5 # Agarre reducido durante el derrape (Barra Espaciadora)
+@export var suavizado_suspension: float = 8.5 # Factor de interpolación (lerpf) de la suspensión
+@export var radio_rueda: float = 0.35 # Radio estimado de llanta para rodamiento realista
+
 # Los tres enchufes (otros scripts los cambian; no se borran)
 var multiplicador = 1.0 # 1 = normal, 0.5 = mitad, 0 = quieto
 var empuje = Vector3.ZERO # m/s que se suman (dash, retroceso)
@@ -26,50 +36,156 @@ var nitro_ok = true # lo pone el nodo Nitro: false si no queda carga
 var corre = false # true mientras Shift está presionada y hay nitro
 var kmh = 0.0 # rapidez máxima del estado actual
 
+# Referencias a componentes y ruedas
+@onready var modelo_nodo: Node3D = get_node_or_null("Modelo")
 @onready var anim = get_node_or_null("Modelo/AnimationPlayer")
+
+var rueda_del_izq: Node3D = null # wheels_019
+var rueda_del_der: Node3D = null # wheels_040
+var rueda_tras_izq: Node3D = null # wheels_018
+var rueda_tras_der: Node3D = null # wheels_041
+
+# Estados internos de interpolación
+var rapidez_actual: float = 0.0
+var volante_actual: float = 0.0
+var angulo_ruedas_actual: float = 0.0
+var rotacion_rodaje: float = 0.0
+var roll_chasis: float = 0.0
+var pitch_chasis: float = 0.0
 
 func _ready():
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
+	
+	_buscar_ruedas()
+	
 	if prueba != "Ninguna":
 		_aplicar_prueba(1)
 
+func _buscar_ruedas() -> void:
+	if not modelo_nodo:
+		return
+	
+	# Búsqueda directa por jerarquía conocida
+	rueda_del_izq = modelo_nodo.get_node_or_null("rally/wheels_019")
+	rueda_del_der = modelo_nodo.get_node_or_null("rally/wheels_040")
+	rueda_tras_izq = modelo_nodo.get_node_or_null("rally/wheels_018")
+	rueda_tras_der = modelo_nodo.get_node_or_null("rally/wheels_041")
+	
+	# Búsqueda de respaldo recursiva si cambian los nombres o jerarquía
+	if not rueda_del_izq or not rueda_del_der:
+		for c in modelo_nodo.find_children("*wheel*", "Node3D", true, false):
+			var n = c.name.to_lower()
+			if "19" in n:
+				rueda_del_izq = c
+			elif "40" in n:
+				rueda_del_der = c
+			elif "18" in n:
+				rueda_tras_izq = c
+			elif "41" in n:
+				rueda_tras_der = c
+
 func _physics_process(delta):
+	# Gravedad estándar
 	velocity += get_gravity() * delta
 	
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
 	
-	var input_dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var entrada = Vector3(input_dir.x, 0.0, input_dir.y)
-	
-	# La entrada se gira solo con el giro horizontal de la cámara
-	var giro_cam = camara.global_rotation.y if camara else 0.0
-	var direction = entrada.rotated(Vector3.UP, giro_cam).normalized()
+	# Entradas de control
+	var input_x = Input.get_axis("move_left", "move_right")
+	var acelerar = Input.is_action_pressed("move_up")
+	var frenar = Input.is_action_pressed("move_down")
+	var derrapando = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 	
 	corre = Input.is_action_pressed("correr") and nitro_ok
-	var speed = speed_correr if corre else speed_caminar
+	var speed_max = speed_correr if corre else speed_caminar
+	speed_max *= multiplicador
 	
-	# Arranque y frenado suaves
-	var objetivo = direction * speed * multiplicador
-	var paso = speed / maxf(tiempo_arranque, 0.05) * delta
-	avance = avance.move_toward(objetivo, paso)
+	# 1. INTERPOLACIÓN DEL VOLANTE (Entrada suavizada con lerpf)
+	volante_actual = lerpf(volante_actual, input_x, clampf(suavizado_volante * delta, 0.0, 1.0))
 	
-	velocity.x = avance.x + empuje.x
-	velocity.z = avance.z + empuje.z
+	# 2. INTERPOLACIÓN DEL ÁNGULO DE LAS RUEDAS DELANTERAS (lerpf)
+	# Al doblar hacia la derecha (input_x > 0), el ángulo orienta las ruedas hacia la derecha
+	var angulo_obj = -volante_actual * max_angulo_ruedas
+	angulo_ruedas_actual = lerpf(angulo_ruedas_actual, angulo_obj, clampf(suavizado_volante * delta, 0.0, 1.0))
 	
-	if direction.length() > 0:
-		var n = get_floor_normal() if is_on_floor() else Vector3.UP
-		if n.y < 0.2:
-			n = Vector3.UP
-		var fwd = (direction - n * direction.dot(n)).normalized()
-		if fwd.length_squared() > 0.001:
-			basis = Basis.looking_at(fwd, n)
+	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS
+	var tasa_acel = speed_max / maxf(tiempo_arranque, 0.05)
+	if acelerar:
+		rapidez_actual = move_toward(rapidez_actual, speed_max, tasa_acel * delta)
+	elif frenar:
+		if rapidez_actual > 0.5:
+			# Frenada enérgica hacia 0
+			rapidez_actual = move_toward(rapidez_actual, 0.0, (speed_max / 0.75) * delta)
 		else:
-			basis = Basis.looking_at(direction)
+			# Reversa controlada
+			rapidez_actual = move_toward(rapidez_actual, -speed_max * 0.35, (speed_max / 1.8) * delta)
+	else:
+		# Desaceleración natural por rozamiento
+		rapidez_actual = move_toward(rapidez_actual, 0.0, (speed_max / 3.5) * delta)
 	
+	# 4. INTERPOLACIÓN DEL GIRO / ROTACIÓN DEL VEHÍCULO
+	# El giro es proporcional a la velocidad (un carro no gira quieto en su propio eje)
+	var factor_velocidad_giro = clampf(absf(rapidez_actual) / maxf(speed_caminar * 0.25, 1.0), 0.15, 1.0)
+	var signo_direccion = -1.0 if rapidez_actual < -0.1 else 1.0
+	var delta_giro = -volante_actual * velocidad_giro * factor_velocidad_giro * signo_direccion * delta
+	rotate_y(delta_giro)
+	
+	# 5. ADAPTACIÓN SUAVE A LA INCLINACIÓN DEL SUELO (Rampas de zona_c)
+	var n = get_floor_normal() if is_on_floor() else Vector3.UP
+	if n.y < 0.2:
+		n = Vector3.UP
+	var up_actual = transform.basis.y
+	var up_suave = up_actual.lerp(n, clampf(10.0 * delta, 0.0, 1.0)).normalized()
+	var adelante_vector = -transform.basis.z
+	adelante_vector = (adelante_vector - up_suave * adelante_vector.dot(up_suave)).normalized()
+	if adelante_vector.length_squared() > 0.001:
+		var lateral = up_suave.cross(adelante_vector).normalized()
+		transform.basis = Basis(lateral, up_suave, -adelante_vector).orthonormalized()
+	
+	# 6. VELOCIDAD Y AGARRE LATERAL / DERRAPE (Interpolación lerpf)
+	var adelante_objetivo = -transform.basis.z * rapidez_actual
+	avance.x = adelante_objetivo.x
+	avance.z = adelante_objetivo.z
+	
+	var agarre = agarre_derrape if derrapando else agarre_lateral
+	velocity.x = lerpf(velocity.x, avance.x + empuje.x, clampf(agarre * delta, 0.0, 1.0))
+	velocity.z = lerpf(velocity.z, avance.z + empuje.z, clampf(agarre * delta, 0.0, 1.0))
+	
+	# 7. ANIMACIÓN E INTERPOLACIÓN DE LAS 4 LLANTAS SEPARADAS
+	if radio_rueda > 0.01:
+		rotacion_rodaje -= (rapidez_actual / radio_rueda) * delta
+	
+	if rueda_del_izq:
+		rueda_del_izq.rotation = Vector3(rotacion_rodaje, angulo_ruedas_actual, 0.0)
+	if rueda_del_der:
+		rueda_del_der.rotation = Vector3(rotacion_rodaje, angulo_ruedas_actual, 0.0)
+	if rueda_tras_izq:
+		rueda_tras_izq.rotation = Vector3(rotacion_rodaje, 0.0, 0.0)
+	if rueda_tras_der:
+		rueda_tras_der.rotation = Vector3(rotacion_rodaje, 0.0, 0.0)
+	
+	# 8. INTERPOLACIÓN DEL BALANCEO DE CARROCERÍA (Suspensión activa con lerpf)
+	if modelo_nodo:
+		# Roll: inclinación lateral centrífuga en curvas
+		var roll_obj = clampf(-volante_actual * (rapidez_actual / speed_caminar) * 0.05, -0.07, 0.07)
+		roll_chasis = lerpf(roll_chasis, roll_obj, clampf(suavizado_suspension * delta, 0.0, 1.0))
+		
+		# Pitch: cabeceo al acelerar (squat) o frenar (dive)
+		var pitch_obj = 0.0
+		if acelerar:
+			pitch_obj = -0.03 if not corre else -0.05
+		elif frenar and rapidez_actual > 1.0:
+			pitch_obj = 0.035
+		pitch_chasis = lerpf(pitch_chasis, pitch_obj, clampf(suavizado_suspension * delta, 0.0, 1.0))
+		
+		modelo_nodo.rotation = Vector3(pitch_chasis, PI, roll_chasis)
+	
+	# Ejecutar movimiento físico
 	move_and_slide()
 	
+	# Máquina de estados oficial
 	var antes = estado
 	estado = elegir_estado()
 	kmh = VELOCIDAD_KMH[estado]
