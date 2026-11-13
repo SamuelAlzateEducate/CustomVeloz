@@ -25,6 +25,8 @@ const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
 @export var agarre_derrape: float = 2.5 # Agarre reducido durante el derrape (Barra Espaciadora)
 @export var suavizado_suspension: float = 8.5 # Factor de interpolación (lerpf) de la suspensión
 @export var radio_rueda: float = 0.35 # Radio estimado de llanta para rodamiento realista
+@export var gravedad_en_aire: float = 2.5 # Multiplicador de gravedad cuando está en el aire (más alto = cae más rápido)
+@export var pegado_al_suelo: float = 1.0 # Metros que "chupa" al suelo en bajadas y baches (floor_snap_length)
 
 # Los tres enchufes (otros scripts los cambian; no se borran)
 var multiplicador = 1.0 # 1 = normal, 0.5 = mitad, 0 = quieto
@@ -54,6 +56,8 @@ var roll_chasis: float = 0.0
 var pitch_chasis: float = 0.0
 
 func _ready():
+	floor_snap_length = pegado_al_suelo
+	floor_constant_speed = true # misma rapidez en subida y bajada
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
 	
@@ -86,8 +90,9 @@ func _buscar_ruedas() -> void:
 				rueda_tras_der = c
 
 func _physics_process(delta):
-	# Gravedad estándar
-	velocity += get_gravity() * delta
+	# Gravedad: en el aire cae más rápido (arcade) para que el carro no flote
+	var factor_gravedad = 1.0 if is_on_floor() else gravedad_en_aire
+	velocity += get_gravity() * factor_gravedad * delta
 	
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
@@ -153,6 +158,10 @@ func _physics_process(delta):
 	velocity.x = lerpf(velocity.x, avance.x + empuje.x, clampf(agarre * delta, 0.0, 1.0))
 	velocity.z = lerpf(velocity.z, avance.z + empuje.z, clampf(agarre * delta, 0.0, 1.0))
 	
+	# Pegado al suelo: en rampas y bajadas la velocidad sigue la pendiente
+	# (antes solo se usaba x/z y el carro salía volando al bajar o cruzar una cresta)
+	if is_on_floor():
+		velocity.y = adelante_objetivo.y
 	# 7. ANIMACIÓN E INTERPOLACIÓN DE LAS 4 LLANTAS SEPARADAS
 	if radio_rueda > 0.01:
 		rotacion_rodaje -= (rapidez_actual / radio_rueda) * delta
