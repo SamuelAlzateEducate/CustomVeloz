@@ -18,6 +18,7 @@ static var checkpoints_pasados: Array[Vector3] = []
 var reapareciendo := false
 
 func _ready() -> void:
+	add_to_group("respawn")
 	# Las variables static sobreviven al reiniciar la escena: se limpian en cada intento
 	ultimo_checkpoint = Vector3(0, 1, 11)
 	ultimo_yaw = 0.0
@@ -26,10 +27,20 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	# Conectar los checkpoints hijos del nodo hermano "Checkpoints"
 	var cp_padre = get_parent().get_node_or_null("Checkpoints")
+	if cp_padre == null:
+		cp_padre = get_parent().get_node_or_null("Pista/Checkpoints")
 	if cp_padre:
 		for cp in cp_padre.get_children():
 			if cp is Area3D:
 				cp.body_entered.connect(_on_checkpoint.bind(cp.global_position))
+
+func registrar_checkpoint(pos: Vector3, yaw: float) -> void:
+	ultimo_checkpoint = pos
+	ultimo_yaw = yaw
+	tiene_yaw = true
+	if not pos in checkpoints_pasados:
+		checkpoints_pasados.append(pos)
+	print("[respawn] nuevo checkpoint registrado: ", pos)
 
 func _physics_process(_delta: float) -> void:
 	if reapareciendo:
@@ -63,6 +74,9 @@ func _reaparecer(body: Node3D) -> void:
 	if not is_instance_valid(body):
 		reapareciendo = false
 		return
+	# Mecánica 5: al reaparecer pierde la última pieza obtenida
+	if body.has_method("quitar_ultima_mejora"):
+		body.quitar_ultima_mejora()
 	# Reubicar en el último checkpoint, derecho y mirando hacia donde iba la pista
 	body.global_position = ultimo_checkpoint + Vector3(0, 1, 0)
 	if tiene_yaw:
@@ -86,7 +100,8 @@ func _on_checkpoint(body: Node3D, pos: Vector3) -> void:
 	if body.is_in_group("jugador"):
 		if not pos in checkpoints_pasados:
 			checkpoints_pasados.append(pos)
-			ultimo_checkpoint = pos
-			ultimo_yaw = body.global_rotation.y
-			tiene_yaw = true
-			print("[checkpoint] nuevo punto de reaparición: ", pos)
+		# Siempre se actualiza: en la vuelta 2 y 3 el último checkpoint es el de esa vuelta
+		ultimo_checkpoint = pos
+		ultimo_yaw = body.global_rotation.y
+		tiene_yaw = true
+		print("[checkpoint] nuevo punto de reaparición: ", pos)

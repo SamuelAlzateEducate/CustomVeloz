@@ -11,9 +11,17 @@ config_version=5
 [application]
 
 config/name="CustomVeloz"
-run/main_scene="res://main.tscn"
+run/main_scene="res://zona_c.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+MCPRuntime="*uid://c1uupb6u33myx"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 

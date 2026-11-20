@@ -1,22 +1,38 @@
 extends Camera3D
 
+# Camara de persecucion (Taller 8, tarea A): va detras y arriba del carro y gira con el.
+# distancia = desfase del Documento de concepto (0, 3, 7), medido en el marco del carro.
+
 @export var objetivo: Node3D
 @export var distancia := Vector3(0, 3, 7) # desfase tercera persona de CustomVeloz (Taller 4)
-@export var suavizado := 3.0
-@export var limite_min := Vector2(-14, -14) # x y z mínimas del foco (el suelo de zona_a mide 30 x 30)
-@export var limite_max := Vector2(14, 14) # x y z máximas del foco
+@export var suavizado := 10.0 # que tan rapido alcanza su sitio (mas alto = mas pegada)
+@export var suavizado_giro := 4.0 # que tan rapido se acomoda detras del carro al girar
+@export var altura_mirada := 1.0 # m sobre el carro hacia donde mira
+@export var usar_limites := false # limites del nivel (Nivel 3): apagados en el circuito
+@export var limite_min := Vector2(-14, -14) # x y z minimas del foco
+@export var limite_max := Vector2(14, 14) # x y z maximas del foco
+
+var yaw := 0.0
+
+func _yaw_del_objetivo() -> float:
+	var ade := -objetivo.global_transform.basis.z
+	return atan2(-ade.x, -ade.z)
 
 func _ready() -> void:
 	top_level = true
 	if objetivo:
-		# Se orienta UNA vez, mirando al objetivo.
-		look_at_from_position(objetivo.global_position + distancia, objetivo.global_position)
+		yaw = _yaw_del_objetivo()
+		var foco := objetivo.global_position
+		look_at_from_position(foco + Basis(Vector3.UP, yaw) * distancia, foco + Vector3.UP * altura_mirada)
 
 func _physics_process(delta: float) -> void:
 	if not objetivo:
 		return
+	yaw = lerp_angle(yaw, _yaw_del_objetivo(), 1.0 - exp(-suavizado_giro * delta))
 	var foco := objetivo.global_position
-	foco.x = clampf(foco.x, limite_min.x, limite_max.x)
-	foco.z = clampf(foco.z, limite_min.y, limite_max.y)
-	var destino := foco + distancia
-	global_position = global_position.lerp(destino, suavizado * delta)
+	if usar_limites:
+		foco.x = clampf(foco.x, limite_min.x, limite_max.x)
+		foco.z = clampf(foco.z, limite_min.y, limite_max.y)
+	var destino := foco + Basis(Vector3.UP, yaw) * distancia
+	global_position = global_position.lerp(destino, 1.0 - exp(-suavizado * delta))
+	look_at(foco + Vector3.UP * altura_mirada, Vector3.UP)

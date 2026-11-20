@@ -21,11 +21,13 @@ var velocidad_actual = 0.0
 var indice = 0
 var vueltas = 0
 
-var reloj_onda = 0.0
+var reloj_onda = 15.0
 var reloj_lento = 0.0
 var jugador: Node3D = null
 
 func _ready():
+	floor_snap_length = 3.0
+	floor_constant_speed = true
 	jugador = get_tree().get_first_node_in_group("jugador")
 
 func _physics_process(delta):
@@ -68,7 +70,13 @@ func _physics_process(delta):
 	var adelante = -transform.basis.z * velocidad_actual
 	velocity.x = adelante.x
 	velocity.z = adelante.z
+	if is_on_floor():
+		var nf = get_floor_normal()
+		if nf.y > 0.3:
+			velocity.y = -(nf.x * velocity.x + nf.z * velocity.z) / nf.y
 	move_and_slide()
+	if not is_on_floor():
+		apply_floor_snap()
 
 func decidir():
 	if reloj_lento > 0.0:

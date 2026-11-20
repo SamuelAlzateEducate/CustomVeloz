@@ -28,6 +28,10 @@ func _physics_process(delta):
 			reiniciar()
 		return
 	
+	var pista := get_tree().get_first_node_in_group("pista")
+	if pista and pista.get("en_cuenta") == true:
+		return # No descontar tiempo durante la cuenta regresiva del semaforo
+	
 	tiempo = maxf(tiempo - delta, 0.0)
 	if tiempo <= 0.001:
 		if gana_con_tiempo:
