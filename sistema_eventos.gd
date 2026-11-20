@@ -31,24 +31,20 @@ func _process(delta: float) -> void:
 			luz_nitro = pj.get_node_or_null("LuzNitro")
 	
 	if luz_nitro != null:
-		if Input.is_action_pressed("move_up"):
-			variable = minf(1.0, variable + delta * 0.7)
+		var acelerando := Input.is_action_pressed("move_up") or Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
+		if acelerando:
+			variable = minf(1.0, variable + delta * 0.8)
 		elif Input.is_action_pressed("move_down"):
 			variable = maxf(0.0, variable - delta * 0.8)
 		else:
-			variable = maxf(0.0, variable - delta * 0.25)
+			variable = maxf(0.0, variable - delta * 0.35)
 		
-		var turbo_activo := Input.is_action_pressed("correr")
-		if turbo_activo:
-			# Durante el turbo la variable sube de inmediato al máximo
-			variable = 1.0
-		else:
-			# Interpolación de color según la variable (azul neón → rojo fuego)
-			luz_nitro.light_color = color_bajo.lerp(color_alto, clampf(variable, 0.0, 1.0))
-			
-			# Energía deseada y persecución suave: de 2.0 en reposo a 6.5 a fondo
-			var energia_deseada := 2.0 + 4.5 * variable
-			luz_nitro.light_energy = decaer(luz_nitro.light_energy, energia_deseada, k_variable, delta)
+		# Interpolación de color según la variable: primero aparece normal (azul neón), y al acelerar/turbo se vuelve roja
+		luz_nitro.light_color = color_bajo.lerp(color_alto, clampf(variable, 0.0, 1.0))
+		
+		# Energía deseada y persecución suave usando la función decaer de zona_b
+		var energia_deseada := 2.0 + 6.0 * variable
+		luz_nitro.light_energy = decaer(luz_nitro.light_energy, energia_deseada, k_variable, delta)
 
 func _on_evento(posicion: Vector3) -> void:
 	if luz_evento != null:

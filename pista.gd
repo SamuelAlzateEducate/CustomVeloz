@@ -341,6 +341,10 @@ func _on_meta(body: Node3D) -> void:
 		return
 	if siguiente_cp >= n_cp:
 		siguiente_cp = 0
+		# Reactivar las esferas para la siguiente vuelta
+		for e in _esferas:
+			e.visible = true
+			e.set_deferred("monitoring", true)
 		var partida := get_tree().get_first_node_in_group("partida")
 		if partida and partida.has_method("avisar_meta"):
 			partida.avisar_meta()

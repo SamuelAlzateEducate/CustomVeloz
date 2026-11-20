@@ -104,7 +104,8 @@ func _physics_process(delta):
 	var frenar = Input.is_action_pressed("move_down")
 	var derrapando = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 	
-	corre = Input.is_action_pressed("correr") and nitro_ok
+	var shift_presionado := Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
+	corre = shift_presionado and nitro_ok
 	var speed_max = speed_correr if corre else speed_caminar
 	speed_max *= multiplicador
 	
@@ -116,9 +117,9 @@ func _physics_process(delta):
 	var angulo_obj = volante_actual * max_angulo_ruedas
 	angulo_ruedas_actual = lerpf(angulo_ruedas_actual, angulo_obj, clampf(suavizado_volante * delta, 0.0, 1.0))
 	
-	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS
+	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS (Con turbo el carro también acelera)
 	var tasa_acel = speed_max / maxf(tiempo_arranque, 0.05)
-	if acelerar:
+	if acelerar or corre:
 		rapidez_actual = move_toward(rapidez_actual, speed_max, tasa_acel * delta)
 	elif frenar:
 		if rapidez_actual > 0.5:
