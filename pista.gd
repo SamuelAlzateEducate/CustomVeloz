@@ -10,6 +10,7 @@ extends Node3D
 const C_ASFALTO := Color("#263238")
 const C_BORDE := Color("#00E5FF")
 const C_VERDE := Color("#76FF03")
+const C_AMARILLO := Color("#FFEA00")
 const C_DANO := Color("#FF5722")
 const C_LINEA := Color("#90A4AE")
 const PASOS_DENSOS := 40
@@ -37,6 +38,9 @@ const PASOS_DENSOS := 40
 @export var esferas_s := PackedFloat32Array([220.0, 580.0, 950.0, 1400.0])
 @export var esferas_lado := PackedFloat32Array([-3.0, 3.0, -2.5, 2.5])
 @export var mejora_kmh := 15.0
+# Posicion de las esferas amarillas de recarga de turbo y boost
+@export var esferas_nitro_s := PackedFloat32Array([400.0, 780.0, 1180.0, 1600.0])
+@export var esferas_nitro_lado := PackedFloat32Array([2.5, -2.5, 3.0, -2.0])
 
 var centro: Array[Vector3] = []
 var derecha: Array[Vector3] = []
@@ -272,6 +276,7 @@ func _construir_juego() -> void:
 	_semaforo()
 	_checkpoints_y_meta()
 	_esferas_verdes()
+	_esferas_amarillas()
 	_conos()
 	_luces_neon()
 	_preparar_carrera()
@@ -365,7 +370,42 @@ func _on_esfera(body: Node3D, a: Area3D) -> void:
 	a.set_deferred("monitoring", false)
 	if body.has_method("aplicar_mejora"):
 		body.aplicar_mejora(mejora_kmh)
+	var eventos = get_tree().get_first_node_in_group("eventos")
+	if eventos and eventos.has_method("_on_evento"):
+		eventos._on_evento(a.global_position)
 	print("[pista] esfera verde: +", mejora_kmh, " km/h de velocidad maxima")
+
+func _esferas_amarillas() -> void:
+	for k in esferas_nitro_s.size():
+		var s := s_meta + esferas_nitro_s[k]
+		var pos := pos_en(s) + der_en(s) * esferas_nitro_lado[k] + Vector3(0, 1.2, 0)
+		var a := _area(self, pos, 0.0, Vector3(2.4, 2.4, 2.4))
+		a.name = "EsferaTurbo%d" % (k + 1)
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		sm.radial_segments = 8
+		sm.rings = 4
+		sm.material = _material_brillo(C_AMARILLO, 2.5)
+		mi.mesh = sm
+		a.add_child(mi)
+		_esferas.append(a)
+		a.body_entered.connect(_on_esfera_nitro.bind(a))
+
+func _on_esfera_nitro(body: Node3D, a: Area3D) -> void:
+	if not body.is_in_group("jugador") or not a.visible:
+		return
+	a.visible = false
+	a.set_deferred("monitoring", false)
+	var n = body.get_node_or_null("Nitro")
+	if n and n.has_method("recargar_nitro"):
+		n.recargar_nitro(1.0)
+	body.velocity += -body.global_transform.basis.z * 5.5
+	var eventos = get_tree().get_first_node_in_group("eventos")
+	if eventos and eventos.has_method("_on_evento"):
+		eventos._on_evento(a.global_position)
+	print("[pista] esfera amarilla: TURBO 100% recargado + impulso")
 
 func _conos() -> void:
 	# Tramo de conos sencillos despues de la meta (Beat 4 del Taller 5)

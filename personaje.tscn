@@ -25,8 +25,8 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 1.95)
 light_color = Color(1, 0.91764706, 0, 1)
 light_energy = 0.0
-spot_range = 8.0
-spot_angle = 35.0
+spot_range = 14.0
+spot_angle = 45.0
 
 [node name="Nitro" type="Node" parent="." unique_id=1942017731 node_paths=PackedStringArray("luz")]
 script = ExtResource("3_nitro")

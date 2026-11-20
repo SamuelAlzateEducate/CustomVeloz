@@ -12,6 +12,7 @@ extends Node
 var variable := 0.0 # De 0 a 1: estado del nitro o prueba con teclas
 
 func _ready() -> void:
+	add_to_group("eventos")
 	for d in get_tree().get_nodes_in_group("disparadores"):
 		d.evento.connect(_on_evento)
 	if luz_evento != null:
@@ -23,19 +24,30 @@ func _process(delta: float) -> void:
 		luz_evento.light_energy = decaer(luz_evento.light_energy, 0.0, k_destello, delta)
 	
 	# 2. Manejo de la luz del nitro usando las acciones del Input Map (W / S / Flechas)
-	var luz_nitro = get_node_or_null("../Personaje/LuzNitro")
+	var luz_nitro: SpotLight3D = get_node_or_null("../Personaje/LuzNitro")
+	if luz_nitro == null:
+		var pj = get_tree().get_first_node_in_group("jugador")
+		if pj:
+			luz_nitro = pj.get_node_or_null("LuzNitro")
+	
 	if luz_nitro != null:
 		if Input.is_action_pressed("move_up"):
-			variable = minf(1.0, variable + delta * 0.5)
+			variable = minf(1.0, variable + delta * 0.6)
 		elif Input.is_action_pressed("move_down"):
-			variable = maxf(0.0, variable - delta * 0.5)
-			
-		# Interpolación de color según la variable
-		luz_nitro.light_color = color_bajo.lerp(color_alto, clampf(variable, 0.0, 1.0))
+			variable = maxf(0.0, variable - delta * 0.8)
+		else:
+			variable = maxf(0.0, variable - delta * 0.25)
 		
-		# Energía deseada y persecución suave usando la función decaer
-		var energia_deseada := 1.0 + 3.0 * variable
-		luz_nitro.light_energy = decaer(luz_nitro.light_energy, energia_deseada, k_variable, delta)
+		# Si el turbo (Shift) está activo, nitro.gd controla el color y la energía.
+		# Solo actualizamos la variable pero no tocamos la luz.
+		var turbo_activo := Input.is_action_pressed("correr")
+		if not turbo_activo:
+			# Interpolación de color según la variable (azul neón → rojo fuego)
+			luz_nitro.light_color = color_bajo.lerp(color_alto, clampf(variable, 0.0, 1.0))
+			
+			# Energía deseada y persecución suave usando la función decaer
+			var energia_deseada := 1.5 + 4.5 * variable
+			luz_nitro.light_energy = decaer(luz_nitro.light_energy, energia_deseada, k_variable, delta)
 
 func _on_evento(posicion: Vector3) -> void:
 	if luz_evento != null:

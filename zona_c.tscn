@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://dow4i1f44tiaa" path="res://respawn.gd" id="12_respawn"]
 [ext_resource type="Script" path="res://pista.gd" id="13_pista"]
 [ext_resource type="Script" path="res://hud_carrera.gd" id="14_hud"]
+[ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="15_eventos"]
 
 [sub_resource type="BoxShape3D" id="KillZoneShape"]
 size = Vector3(1500, 4, 1500)
@@ -109,3 +110,13 @@ aceleracion = 6.5
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("14_hud")
+
+[node name="LuzEvento" type="OmniLight3D" parent="."]
+light_color = Color(0.4627451, 1, 0.011764706, 1)
+light_energy = 0.0
+omni_range = 6.0
+omni_attenuation = 2.0
+
+[node name="SistemaEventos" type="Node3D" parent="." node_paths=PackedStringArray("luz_evento")]
+script = ExtResource("15_eventos")
+luz_evento = NodePath("../LuzEvento")
