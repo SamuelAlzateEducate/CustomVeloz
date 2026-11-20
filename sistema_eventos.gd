@@ -32,21 +32,22 @@ func _process(delta: float) -> void:
 	
 	if luz_nitro != null:
 		if Input.is_action_pressed("move_up"):
-			variable = minf(1.0, variable + delta * 0.6)
+			variable = minf(1.0, variable + delta * 0.7)
 		elif Input.is_action_pressed("move_down"):
 			variable = maxf(0.0, variable - delta * 0.8)
 		else:
 			variable = maxf(0.0, variable - delta * 0.25)
 		
-		# Si el turbo (Shift) está activo, nitro.gd controla el color y la energía.
-		# Solo actualizamos la variable pero no tocamos la luz.
 		var turbo_activo := Input.is_action_pressed("correr")
-		if not turbo_activo:
+		if turbo_activo:
+			# Durante el turbo la variable sube de inmediato al máximo
+			variable = 1.0
+		else:
 			# Interpolación de color según la variable (azul neón → rojo fuego)
 			luz_nitro.light_color = color_bajo.lerp(color_alto, clampf(variable, 0.0, 1.0))
 			
-			# Energía deseada y persecución suave usando la función decaer
-			var energia_deseada := 1.5 + 4.5 * variable
+			# Energía deseada y persecución suave: de 2.0 en reposo a 6.5 a fondo
+			var energia_deseada := 2.0 + 4.5 * variable
 			luz_nitro.light_energy = decaer(luz_nitro.light_energy, energia_deseada, k_variable, delta)
 
 func _on_evento(posicion: Vector3) -> void:

@@ -35,12 +35,12 @@ const PASOS_DENSOS := 40
 	0.0, 0.0, 0.0, 0.0, 1.5, 4.5, 8.5, 12.0, 10.5, 7.5,
 	4.5, 2.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 # Posicion (en metros desde la meta) de las esferas verdes y su desvio lateral.
-@export var esferas_s := PackedFloat32Array([220.0, 580.0, 950.0, 1400.0])
-@export var esferas_lado := PackedFloat32Array([-3.0, 3.0, -2.5, 2.5])
+@export var esferas_s := PackedFloat32Array([150.0, 420.0, 700.0, 980.0, 1260.0, 1530.0, 1710.0])
+@export var esferas_lado := PackedFloat32Array([-2.5, 3.0, -3.0, 2.5, -2.5, 3.0, -2.5])
 @export var mejora_kmh := 15.0
 # Posicion de las esferas amarillas de recarga de turbo y boost
-@export var esferas_nitro_s := PackedFloat32Array([400.0, 780.0, 1180.0, 1600.0])
-@export var esferas_nitro_lado := PackedFloat32Array([2.5, -2.5, 3.0, -2.0])
+@export var esferas_nitro_s := PackedFloat32Array([280.0, 560.0, 850.0, 1120.0, 1400.0, 1650.0])
+@export var esferas_nitro_lado := PackedFloat32Array([2.5, -2.5, 3.0, -3.0, 2.5, -2.0])
 
 var centro: Array[Vector3] = []
 var derecha: Array[Vector3] = []
