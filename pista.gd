@@ -9,8 +9,8 @@ extends Node3D
 
 const C_ASFALTO := Color("#263238")
 const C_BORDE := Color("#00E5FF")
-const C_VERDE := Color("#76FF03")
-const C_AMARILLO := Color("#FFEA00")
+const C_VERDE := Color(0.0, 1.0, 0.25) # Verde Neón Esmeralda Puro (Alerón / Mejora) - Cero Rojo
+const C_AMARILLO := Color(1.0, 0.85, 0.0) # Amarillo Dorado / Fuego (Turbo)
 const C_DANO := Color("#FF5722")
 const C_LINEA := Color("#90A4AE")
 const PASOS_DENSOS := 40
@@ -34,13 +34,29 @@ const PASOS_DENSOS := 40
 @export var alturas := PackedFloat32Array([
 	0.0, 0.0, 0.0, 0.0, 1.5, 4.5, 8.5, 12.0, 10.5, 7.5,
 	4.5, 2.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-# Posicion (en metros desde la meta) de las esferas verdes y su desvio lateral.
-@export var esferas_s := PackedFloat32Array([150.0, 420.0, 700.0, 980.0, 1260.0, 1530.0, 1710.0])
-@export var esferas_lado := PackedFloat32Array([-2.5, 3.0, -3.0, 2.5, -2.5, 3.0, -2.5])
+# Posicion (en metros desde la meta) de las 32 esferas verdes de ALERON (cada ~55 m)
+@export var esferas_s := PackedFloat32Array([
+	20.0, 75.0, 130.0, 185.0, 240.0, 295.0, 350.0, 405.0, 460.0, 515.0,
+	570.0, 625.0, 680.0, 735.0, 790.0, 845.0, 900.0, 955.0, 1010.0, 1065.0,
+	1120.0, 1175.0, 1230.0, 1285.0, 1340.0, 1395.0, 1450.0, 1505.0, 1560.0, 1615.0,
+	1670.0, 1725.0])
+@export var esferas_lado := PackedFloat32Array([
+	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
+	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
+	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
+	-3.0, 3.0])
 @export var mejora_kmh := 15.0
-# Posicion de las esferas amarillas de recarga de turbo y boost
-@export var esferas_nitro_s := PackedFloat32Array([280.0, 560.0, 850.0, 1120.0, 1400.0, 1650.0])
-@export var esferas_nitro_lado := PackedFloat32Array([2.5, -2.5, 3.0, -3.0, 2.5, -2.0])
+# Posicion de las 32 esferas amarillas de TURBO intercaladas (cada ~55 m, desfasadas 27.5 m)
+@export var esferas_nitro_s := PackedFloat32Array([
+	47.5, 102.5, 157.5, 212.5, 267.5, 322.5, 377.5, 432.5, 487.5, 542.5,
+	597.5, 652.5, 707.5, 762.5, 817.5, 872.5, 927.5, 982.5, 1037.5, 1092.5,
+	1147.5, 1202.5, 1257.5, 1312.5, 1367.5, 1422.5, 1477.5, 1532.5, 1587.5, 1642.5,
+	1697.5, 1752.5])
+@export var esferas_nitro_lado := PackedFloat32Array([
+	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
+	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
+	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
+	-2.5, 2.5])
 
 var centro: Array[Vector3] = []
 var derecha: Array[Vector3] = []
@@ -353,15 +369,16 @@ func _esferas_verdes() -> void:
 	for k in esferas_s.size():
 		var s := s_meta + esferas_s[k]
 		var pos := pos_en(s) + der_en(s) * esferas_lado[k] + Vector3(0, 1.2, 0)
-		var a := _area(self, pos, 0.0, Vector3(2.4, 2.4, 2.4))
+		var a := _area(self, pos, 0.0, Vector3(2.6, 2.6, 2.6))
 		a.name = "EsferaVerde%d" % (k + 1)
+		# Esfera verde esmeralda pura (Alerón = +velocidad temporal)
 		var mi := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.5
-		sm.height = 1.0
-		sm.radial_segments = 8
-		sm.rings = 4
-		sm.material = _material_brillo(C_VERDE, 2.0)
+		sm.radius = 0.55
+		sm.height = 1.1
+		sm.radial_segments = 12
+		sm.rings = 6
+		sm.material = _material_brillo(C_VERDE, 2.8)
 		mi.mesh = sm
 		a.add_child(mi)
 		_esferas.append(a)
@@ -383,17 +400,30 @@ func _esferas_amarillas() -> void:
 	for k in esferas_nitro_s.size():
 		var s := s_meta + esferas_nitro_s[k]
 		var pos := pos_en(s) + der_en(s) * esferas_nitro_lado[k] + Vector3(0, 1.2, 0)
-		var a := _area(self, pos, 0.0, Vector3(2.4, 2.4, 2.4))
+		var a := _area(self, pos, 0.0, Vector3(3.2, 3.2, 3.2))
 		a.name = "EsferaTurbo%d" % (k + 1)
+		# Esfera central dorada de turbo
 		var mi := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.5
+		sm.radius = 0.50
 		sm.height = 1.0
-		sm.radial_segments = 8
-		sm.rings = 4
-		sm.material = _material_brillo(C_AMARILLO, 2.5)
+		sm.radial_segments = 12
+		sm.rings = 6
+		sm.material = _material_brillo(C_AMARILLO, 3.2)
 		mi.mesh = sm
 		a.add_child(mi)
+		# Anillo orbital dorado (TorusMesh) para que se distinga instantáneamente
+		var anillo := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.65
+		tm.outer_radius = 0.90
+		tm.rings = 16
+		tm.ring_segments = 8
+		tm.material = _material_brillo(C_AMARILLO, 2.5)
+		anillo.mesh = tm
+		anillo.name = "AnilloTurbo"
+		anillo.rotation_degrees = Vector3(45.0, 0.0, 0.0)
+		a.add_child(anillo)
 		_esferas.append(a)
 		a.body_entered.connect(_on_esfera_nitro.bind(a))
 
@@ -495,7 +525,10 @@ func _process(delta: float) -> void:
 		var e := _esferas[k]
 		if e.visible:
 			e.rotate_y(delta * 1.5)
-			e.position.y += sin(_reloj * 3.0 + float(k)) * delta * 0.4
+			var anillo = e.get_node_or_null("AnilloTurbo")
+			if anillo:
+				anillo.rotate_x(delta * 2.8)
+				anillo.rotate_z(delta * 1.4)
 	if en_cuenta:
 		_t_cuenta += delta
 		if _t_cuenta < cuenta_atras:

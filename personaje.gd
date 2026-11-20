@@ -91,6 +91,7 @@ func _buscar_ruedas() -> void:
 				rueda_tras_der = c
 
 func _physics_process(delta):
+	_actualizar_mejoras(delta)
 	# Gravedad: en el aire cae más rápido (arcade) para que el carro no flote
 	var factor_gravedad = 1.0 if is_on_floor() else gravedad_en_aire
 	velocity += get_gravity() * factor_gravedad * delta
@@ -232,12 +233,64 @@ func _physics_process(delta):
 	
 	_prueba()
 
+@export var duracion_mejora := 8.0 # s que dura el extra de velocidad de cada esfera verde (el alerón se desvanece con él)
 var mejoras: Array = [] # km/h de cada esfera verde recogida (la última se pierde al reaparecer)
 var piezas: Array = [] # alerones visibles, uno por mejora
+var mejoras_t: Array = [] # segundos que le quedan a cada mejora
+var mejoras_ap: Array = [] # m/s que cada mejora está sumando ahora mismo (baja poco a poco hasta 0)
+var mats_aleron: Array = [] # materiales de cada alerón (para desvanecerlos)
+
+# La mejora se va gastando: el extra de velocidad baja linealmente y el alerón se desvanece
+# encogiéndose y parpadeando en los últimos segundos hasta desaparecer.
+func _actualizar_mejoras(delta: float) -> void:
+	var i := mejoras_t.size() - 1
+	while i >= 0:
+		mejoras_t[i] -= delta
+		var f := clampf(mejoras_t[i] / duracion_mejora, 0.0, 1.0)
+		var objetivo: float = float(mejoras[i]) / 3.6 * f
+		var d: float = objetivo - float(mejoras_ap[i])
+		speed_caminar += d
+		speed_correr += d
+		mejoras_ap[i] = objetivo
+		
+		# Feedback visual inconfundible del alerón
+		var pieza = piezas[i]
+		if is_instance_valid(pieza):
+			# En los últimos 2.5s parpadea avisando que se apaga
+			if mejoras_t[i] < 2.5:
+				var parpadeo := sin(Time.get_ticks_msec() * 0.025) > 0.0
+				pieza.visible = parpadeo
+			else:
+				pieza.visible = true
+			# Encogimiento suave progresivo para que se vea cómo se desvanece
+			var escala := clampf(f * 1.25, 0.05, 1.0)
+			pieza.scale = Vector3(escala, escala, escala)
+			
+		for mat in mats_aleron[i]:
+			if mat is StandardMaterial3D:
+				var c: Color = mat.albedo_color
+				c.a = f
+				mat.albedo_color = c
+				mat.emission = Color(0.0, 1.0, 0.25) * f
+				mat.emission_energy_multiplier = 2.5 * f
+				
+		if mejoras_t[i] <= 0.0:
+			var pieza_fin = piezas[i]
+			if is_instance_valid(pieza_fin):
+				pieza_fin.queue_free()
+			mejoras.remove_at(i)
+			piezas.remove_at(i)
+			mejoras_t.remove_at(i)
+			mejoras_ap.remove_at(i)
+			mats_aleron.remove_at(i)
+			print("[mejora] el alerón se desvaneció: base ", snappedf(speed_caminar * 3.6, 0.1), " km/h")
+		i -= 1
 
 # Esfera verde (Documento de concepto, mecánica 1): +15 km/h de velocidad máxima y una pieza visible (alerón)
 func aplicar_mejora(kmh_extra: float) -> void:
 	mejoras.append(kmh_extra)
+	mejoras_t.append(duracion_mejora)
+	mejoras_ap.append(kmh_extra / 3.6)
 	speed_caminar += kmh_extra / 3.6
 	speed_correr += kmh_extra / 3.6
 	
@@ -246,10 +299,11 @@ func aplicar_mejora(kmh_extra: float) -> void:
 	contenedor.name = "Aleron_%d" % piezas.size()
 	
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color("#76FF03")
+	mat.albedo_color = Color(0.0, 1.0, 0.25) # Verde Neón Esmeralda Puro
 	mat.emission_enabled = true
-	mat.emission = Color("#76FF03")
-	mat.emission_energy_multiplier = 2.0
+	mat.emission = Color(0.0, 1.0, 0.25)
+	mat.emission_energy_multiplier = 2.5
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	
 	# Ala principal
 	var ala := MeshInstance3D.new()
@@ -263,6 +317,7 @@ func aplicar_mejora(kmh_extra: float) -> void:
 	# Soportes laterales
 	var mat_soporte := StandardMaterial3D.new()
 	mat_soporte.albedo_color = Color(0.1, 0.12, 0.14)
+	mat_soporte.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	for lado in [-0.5, 0.5]:
 		var soporte := MeshInstance3D.new()
 		var sm := BoxMesh.new()
@@ -286,6 +341,7 @@ func aplicar_mejora(kmh_extra: float) -> void:
 	# Posicionado sobre el maletero trasero
 	contenedor.position = Vector3(0.0, 1.05 + 0.15 * piezas.size(), 1.65)
 	piezas.append(contenedor)
+	mats_aleron.append([mat, mat_soporte])
 	
 	# Destello blanco de 0.3s (Documento de concepto: "destello blanco de 0.3s en la pieza recién instalada")
 	var destello := StandardMaterial3D.new()
@@ -315,9 +371,12 @@ func aplicar_mejora(kmh_extra: float) -> void:
 func quitar_ultima_mejora() -> void:
 	if mejoras.is_empty():
 		return
-	var kmh_extra: float = mejoras.pop_back()
-	speed_caminar -= kmh_extra / 3.6
-	speed_correr -= kmh_extra / 3.6
+	mejoras.pop_back()
+	mejoras_t.pop_back()
+	mats_aleron.pop_back()
+	var ap_ms: float = mejoras_ap.pop_back() # lo que ese alerón sumaba en este momento
+	speed_caminar -= ap_ms
+	speed_correr -= ap_ms
 	var pieza = piezas.pop_back()
 	if is_instance_valid(pieza):
 		pieza.queue_free()

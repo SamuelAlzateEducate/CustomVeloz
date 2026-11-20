@@ -31,6 +31,8 @@ spot_angle = 35.0
 [node name="Nitro" type="Node" parent="." unique_id=1942017731 node_paths=PackedStringArray("luz")]
 script = ExtResource("3_nitro")
 luz = NodePath("../LuzNitro")
+recarga_automatica = false
+llama_visible = true
 
 [node name="AudioCarro" type="Node" parent="."]
 script = ExtResource("4_audio")

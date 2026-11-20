@@ -10,6 +10,7 @@ var l_tiempo: Label
 var l_vel: Label
 var l_cuenta: Label
 var l_nitro: Label
+var l_aleron: Label
 var pb_nitro: ProgressBar
 
 func _etiqueta(tam: int, color: Color) -> Label:
@@ -47,6 +48,17 @@ func _ready() -> void:
 	l_nitro.offset_bottom = -96
 	l_nitro.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	l_nitro.text = "TURBO [SHIFT]"
+	
+	l_aleron = _etiqueta(16, Color(0.0, 1.0, 0.25))
+	l_aleron.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	l_aleron.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	l_aleron.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	l_aleron.offset_left = -300
+	l_aleron.offset_top = -148
+	l_aleron.offset_right = -24
+	l_aleron.offset_bottom = -124
+	l_aleron.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l_aleron.text = ""
 	
 	pb_nitro = ProgressBar.new()
 	pb_nitro.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -106,6 +118,21 @@ func _process(_delta: float) -> void:
 				l_nitro.text = "TURBO [SHIFT] %d%%" % int(round(n.carga * 100.0))
 				l_nitro.add_theme_color_override("font_color", C_UI)
 				if sb: sb.bg_color = C_UI
+		if jugador.get("mejoras_t") != null and jugador.mejoras_t.size() > 0:
+			var t_max: float = 0.0
+			for t_val in jugador.mejoras_t:
+				t_max = maxf(t_max, float(t_val))
+			if t_max > 0.05:
+				if t_max < 2.5:
+					l_aleron.text = "ALERÓN EXPIRANDO: %.1fs" % t_max
+					l_aleron.add_theme_color_override("font_color", Color("#FF5722"))
+				else:
+					l_aleron.text = "ALERÓN [+15 km/h]: %.1fs" % t_max
+					l_aleron.add_theme_color_override("font_color", Color(0.0, 1.0, 0.25))
+			else:
+				l_aleron.text = ""
+		else:
+			l_aleron.text = ""
 	if pista:
 		l_cuenta.text = pista.texto_cuenta
 		l_cuenta.add_theme_color_override("font_color", C_UI if pista.en_cuenta else Color("#76FF03"))

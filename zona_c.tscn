@@ -9,8 +9,8 @@
 [ext_resource type="PackedScene" uid="uid://b18r8kneeliyy" path="res://rival.tscn" id="10_rival_scene"]
 [ext_resource type="PackedScene" uid="uid://dt7x8g3rival2" path="res://rival2.tscn" id="11_rival2_scene"]
 [ext_resource type="Script" uid="uid://dow4i1f44tiaa" path="res://respawn.gd" id="12_respawn"]
-[ext_resource type="Script" path="res://pista.gd" id="13_pista"]
-[ext_resource type="Script" path="res://hud_carrera.gd" id="14_hud"]
+[ext_resource type="Script" uid="uid://d0a1oidnweb3s" path="res://pista.gd" id="13_pista"]
+[ext_resource type="Script" uid="uid://dt654uguqsxyw" path="res://hud_carrera.gd" id="14_hud"]
 [ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="15_eventos"]
 
 [sub_resource type="BoxShape3D" id="KillZoneShape"]
@@ -35,88 +35,92 @@ roughness = 0.2
 [sub_resource type="SphereMesh" id="BrilloMalla"]
 material = SubResource("BrilloMat")
 
-[node name="zona_c" type="Node3D"]
+[node name="zona_c" type="Node3D" unique_id=1654283543]
 
-[node name="Pista" type="Node3D" parent="." groups=["pista"]]
+[node name="Pista" type="Node3D" parent="." unique_id=607269385 groups=["pista"]]
 script = ExtResource("13_pista")
+puntos = PackedVector2Array(0, 100, 0, 0, 0, -110, 30, -200, 100, -260, 200, -270, 280, -220, 310, -140, 280, -60, 210, -30, 140, -50, 90, 15, 110, 95, 185, 150, 255, 220, 230, 300, 140, 330, 50, 290, -15, 220, -15, 150)
+alturas = PackedFloat32Array(0, 0, 0, 0, 1.5, 4.5, 8.5, 12, 10.5, 7.5, 4.5, 2, 0.5, 0, 0, 0, 0, 0, 0, 0)
+esferas_s = PackedFloat32Array(20, 75, 130, 185, 240, 295, 350, 405, 460, 515, 570, 625, 680, 735, 790, 845, 900, 955, 1010, 1065, 1120, 1175, 1230, 1285, 1340, 1395, 1450, 1505, 1560, 1615, 1670, 1725)
+esferas_lado = PackedFloat32Array(-3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3)
+esferas_nitro_s = PackedFloat32Array(47.5, 102.5, 157.5, 212.5, 267.5, 322.5, 377.5, 432.5, 487.5, 542.5, 597.5, 652.5, 707.5, 762.5, 817.5, 872.5, 927.5, 982.5, 1037.5, 1092.5, 1147.5, 1202.5, 1257.5, 1312.5, 1367.5, 1422.5, 1477.5, 1532.5, 1587.5, 1642.5, 1697.5, 1752.5)
+esferas_nitro_lado = PackedFloat32Array(-2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5)
 
-[node name="KillZone" type="Area3D" parent="."]
+[node name="KillZone" type="Area3D" parent="." unique_id=368832371]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 150, -15, 30)
 script = ExtResource("12_respawn")
 
-[node name="Col" type="CollisionShape3D" parent="KillZone"]
+[node name="Col" type="CollisionShape3D" parent="KillZone" unique_id=1375259104]
 shape = SubResource("KillZoneShape")
 
-[node name="Partida" type="Node" parent="." groups=["partida"]]
+[node name="Partida" type="Node" parent="." unique_id=467334505 groups=["partida"]]
 script = ExtResource("7_partida")
-metas = 3
 
-[node name="Camera3D" type="Camera3D" parent="." node_paths=PackedStringArray("objetivo")]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1749384353 node_paths=PackedStringArray("objetivo")]
 transform = Transform3D(1, 0, 0, 0, 0.9, 0.43, 0, -0.43, 0.9, 0, 3, 18)
 current = true
 script = ExtResource("1_nknid")
 objetivo = NodePath("../Personaje")
-suavizado = 10.0
 
-[node name="SistemaSol" type="Node3D" parent="." node_paths=PackedStringArray("sol", "entorno")]
+[node name="SistemaSol" type="Node3D" parent="." unique_id=1946518971 node_paths=PackedStringArray("sol", "entorno")]
 script = ExtResource("2_toaxk")
 sol = NodePath("DirectionalLight3D")
 entorno = NodePath("WorldEnvironment")
 
-[node name="CicloDia" type="Node" parent="SistemaSol"]
+[node name="CicloDia" type="Node" parent="SistemaSol" unique_id=1124598050]
 script = ExtResource("3_e2xqd")
 hora = 17.0
 pausado = true
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol"]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SistemaSol" unique_id=1670627203]
 environment = SubResource("Entorno")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol"]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SistemaSol" unique_id=1573774164]
 transform = Transform3D(1, 0, 0, 0, -0.9659258, 0.25881913, 0, -0.25881913, -0.9659258, 0, 6, 0)
 shadow_enabled = true
 shadow_bias = 3.0
 shadow_normal_bias = 6.0
 directional_shadow_max_distance = 120.0
 
-[node name="EsferaBrillo" type="MeshInstance3D" parent="."]
+[node name="EsferaBrillo" type="MeshInstance3D" parent="." unique_id=125600117]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0.5, 20)
 mesh = SubResource("BrilloMalla")
 
-[node name="Personaje" parent="." instance=ExtResource("5_toaxk")]
+[node name="Personaje" parent="." unique_id=463236057 instance=ExtResource("5_toaxk")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
 
-[node name="FaroIzq" type="SpotLight3D" parent="Personaje"]
+[node name="FaroIzq" type="SpotLight3D" parent="Personaje" unique_id=1135086296]
 light_color = Color(1, 0.92941177, 0.7019608, 1)
 light_energy = 2.5
 spot_angle = 30.0
 script = ExtResource("6_e2xqd")
 lado = -1.0
 
-[node name="FaroDer" type="SpotLight3D" parent="Personaje"]
+[node name="FaroDer" type="SpotLight3D" parent="Personaje" unique_id=1842783244]
 light_color = Color(1, 0.92941177, 0.7019608, 1)
 light_energy = 2.5
 spot_angle = 30.0
 script = ExtResource("6_e2xqd")
 
-[node name="Rival1_Fenyr" parent="." groups=["rival"] instance=ExtResource("10_rival_scene")]
+[node name="Rival1_Fenyr" parent="." unique_id=637875967 groups=["rival"] instance=ExtResource("10_rival_scene")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, 11)
 velocidad_maxima = 22.0
 aceleracion = 7.0
 
-[node name="Rival2_Italia" parent="." groups=["rival"] instance=ExtResource("11_rival2_scene")]
+[node name="Rival2_Italia" parent="." unique_id=806139400 groups=["rival"] instance=ExtResource("11_rival2_scene")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0, 11)
 velocidad_maxima = 21.0
 aceleracion = 6.5
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=2081480503]
 script = ExtResource("14_hud")
 
-[node name="LuzEvento" type="OmniLight3D" parent="."]
+[node name="LuzEvento" type="OmniLight3D" parent="." unique_id=1590413848]
 light_color = Color(0.4627451, 1, 0.011764706, 1)
 light_energy = 0.0
 omni_range = 6.0
 omni_attenuation = 2.0
 
-[node name="SistemaEventos" type="Node3D" parent="." node_paths=PackedStringArray("luz_evento")]
+[node name="SistemaEventos" type="Node3D" parent="." unique_id=1061094344 node_paths=PackedStringArray("luz_evento")]
 script = ExtResource("15_eventos")
 luz_evento = NodePath("../LuzEvento")
