@@ -21,6 +21,17 @@ func _ready():
 	tiempo = tiempo_limite
 	print("intento ", intentos, " · mejor tiempo ", snappedf(mejor, 0.01))
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+		capturar_pantalla("capturas/c4_escenario_manual.png")
+
+func capturar_pantalla(ruta: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	if img:
+		img.save_png(ruta)
+		print("[captura] guardada en ", ruta)
+
 func _physics_process(delta):
 	if estado != Estado.JUGANDO:
 		reloj -= delta

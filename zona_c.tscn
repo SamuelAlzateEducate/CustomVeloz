@@ -12,11 +12,20 @@
 [ext_resource type="Script" uid="uid://d0a1oidnweb3s" path="res://pista.gd" id="13_pista"]
 [ext_resource type="Script" uid="uid://dt654uguqsxyw" path="res://hud_carrera.gd" id="14_hud"]
 [ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="15_eventos"]
+[ext_resource type="Script" path="res://escenario_fondo.gd" id="16_escenario"]
 
 [sub_resource type="BoxShape3D" id="KillZoneShape"]
 size = Vector3(1500, 4, 1500)
 
 [sub_resource type="ProceduralSkyMaterial" id="CieloMat"]
+sky_top_color = Color(0.08, 0.05, 0.22, 1)
+sky_horizon_color = Color(0.42, 0.2, 0.45, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.03, 0.02, 0.06, 1)
+ground_horizon_color = Color(0.28, 0.12, 0.35, 1)
+ground_curve = 0.08
+sun_angle_max = 30.0
+sun_curve = 0.15
 
 [sub_resource type="Sky" id="Cielo"]
 sky_material = SubResource("CieloMat")
@@ -25,8 +34,24 @@ sky_material = SubResource("CieloMat")
 background_mode = 2
 sky = SubResource("Cielo")
 ambient_light_source = 2
-ambient_light_color = Color(0.149, 0.196, 0.22, 1)
+ambient_light_color = Color(0.18, 0.15, 0.26, 1)
+ambient_light_energy = 0.9
 tonemap_mode = 2
+tonemap_exposure = 1.1
+glow_enabled = true
+glow_levels/1 = 0.8
+glow_levels/2 = 0.6
+glow_levels/3 = 1.0
+glow_levels/5 = 0.5
+glow_intensity = 0.8
+glow_strength = 1.0
+glow_bloom = 0.25
+glow_blend_mode = 0
+glow_hdr_threshold = 1.0
+fog_enabled = true
+fog_light_color = Color(0.16, 0.11, 0.25, 1)
+fog_density = 0.0018
+fog_sky_affect = 0.4
 
 [sub_resource type="StandardMaterial3D" id="BrilloMat"]
 albedo_color = Color(0.690196, 0.745098, 0.772549, 1)
@@ -45,6 +70,9 @@ esferas_s = PackedFloat32Array(20, 75, 130, 185, 240, 295, 350, 405, 460, 515, 5
 esferas_lado = PackedFloat32Array(-3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3)
 esferas_nitro_s = PackedFloat32Array(47.5, 102.5, 157.5, 212.5, 267.5, 322.5, 377.5, 432.5, 487.5, 542.5, 597.5, 652.5, 707.5, 762.5, 817.5, 872.5, 927.5, 982.5, 1037.5, 1092.5, 1147.5, 1202.5, 1257.5, 1312.5, 1367.5, 1422.5, 1477.5, 1532.5, 1587.5, 1642.5, 1697.5, 1752.5)
 esferas_nitro_lado = PackedFloat32Array(-2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5)
+
+[node name="EscenarioFondo" type="Node3D" parent="." unique_id=987654321]
+script = ExtResource("16_escenario")
 
 [node name="KillZone" type="Area3D" parent="." unique_id=368832371]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 150, -15, 30)
@@ -66,6 +94,9 @@ objetivo = NodePath("../Personaje")
 script = ExtResource("2_toaxk")
 sol = NodePath("DirectionalLight3D")
 entorno = NodePath("WorldEnvironment")
+energia_sol = 2.2
+ambiente_dia = 1.25
+ambiente_noche = 0.55
 
 [node name="CicloDia" type="Node" parent="SistemaSol" unique_id=1124598050]
 script = ExtResource("3_e2xqd")

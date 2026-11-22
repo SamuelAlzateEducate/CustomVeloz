@@ -21,10 +21,14 @@ var carga := 1.0 # 0 a 1 (la barra de nitro de la UI)
 var activo := false
 var bloqueado := false
 
+const EstelaLuzScript = preload("res://estela_luz.gd")
+
 var _llamas: Array[MeshInstance3D] = []
 var _mat_llama: StandardMaterial3D
 var _luz_trasera: OmniLight3D
 var _calor := 0.0 # 0 a 1: se calienta (azul -> rojo) mientras el turbo está activo
+var _chispas: Array[CPUParticles3D] = []
+var _estela: MeshInstance3D
 
 @onready var pj := get_parent()
 
@@ -68,6 +72,42 @@ func _crear_llamas() -> void:
 	_luz_trasera.position = Vector3(0.0, 0.8, 3.0)
 	pj.add_child.call_deferred(_luz_trasera)
 
+	# Chispas estilo Burnout para cada escape
+	for x in [-0.38, 0.38]:
+		var p := CPUParticles3D.new()
+		p.name = "ChispasTurbo"
+		p.emitting = false
+		p.local_coords = false # En el espacio del mundo para que queden flotando atrás
+		p.amount = 32
+		p.lifetime = 0.35
+		p.explosiveness = 0.0
+		p.randomness = 0.3
+		p.direction = Vector3(0.0, 0.15, 1.0) # Hacia atrás del carro
+		p.spread = 15.0
+		p.gravity = Vector3(0.0, -3.5, 0.0)
+		p.initial_velocity_min = 14.0
+		p.initial_velocity_max = 26.0
+		p.scale_amount_min = 0.06
+		p.scale_amount_max = 0.16
+		var mat_p := StandardMaterial3D.new()
+		mat_p.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat_p.albedo_color = Color(1.0, 0.8, 0.2)
+		mat_p.emission_enabled = true
+		mat_p.emission = Color(1.0, 0.6, 0.1)
+		mat_p.emission_energy_multiplier = 3.5
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.12, 0.12)
+		quad.material = mat_p
+		p.mesh = quad
+		p.position = Vector3(x, 0.58, 1.82)
+		pj.add_child.call_deferred(p)
+		_chispas.append(p)
+	
+	# Estela de luz neón detrás del carro
+	_estela = EstelaLuzScript.new()
+	_estela.name = "EstelaLuzTurbo"
+	pj.add_child.call_deferred(_estela)
+
 func _actualizar_llamas(delta: float) -> void:
 	if _mat_llama == null:
 		return
@@ -88,6 +128,11 @@ func _actualizar_llamas(delta: float) -> void:
 	if is_instance_valid(_luz_trasera):
 		_luz_trasera.light_color = c
 		_luz_trasera.light_energy = (1.0 + 7.0 * _calor) if encendido else 0.0
+	for p in _chispas:
+		if is_instance_valid(p):
+			p.emitting = encendido and activo
+	if is_instance_valid(_estela):
+		_estela.actualizar_estela(activo, _calor)
 
 func _physics_process(delta: float) -> void:
 	var tecla_shift := Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
