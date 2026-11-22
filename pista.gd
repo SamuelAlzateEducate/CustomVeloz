@@ -348,6 +348,9 @@ func _on_cp(body: Node3D, k: int) -> void:
 	if body.is_in_group("jugador"):
 		if k == siguiente_cp:
 			siguiente_cp += 1
+			var partida := get_tree().get_first_node_in_group("partida")
+			if partida and partida.has_method("registrar_checkpoint_split"):
+				partida.registrar_checkpoint_split(k)
 		var respawn = get_tree().get_first_node_in_group("respawn")
 		if respawn and respawn.has_method("registrar_checkpoint"):
 			respawn.registrar_checkpoint(body.global_position, body.global_rotation.y)

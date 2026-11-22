@@ -137,7 +137,9 @@ func _physics_process(delta):
 	# El giro es proporcional a la velocidad (un carro no gira quieto en su propio eje)
 	var factor_velocidad_giro = clampf(absf(rapidez_actual) / maxf(speed_caminar * 0.25, 1.0), 0.15, 1.0)
 	var signo_direccion = -1.0 if rapidez_actual < -0.1 else 1.0
-	var delta_giro = -volante_actual * velocidad_giro * factor_velocidad_giro * signo_direccion * delta
+	# Potenciador de giro al derrapar: permite tomar curvas cerradas de forma ágil y arcade
+	var mult_giro = 1.35 if derrapando else 1.0
+	var delta_giro = -volante_actual * velocidad_giro * factor_velocidad_giro * signo_direccion * mult_giro * delta
 	rotate_y(delta_giro)
 	
 	# 5. ADAPTACIÓN SUAVE A LA INCLINACIÓN DEL SUELO Y PEGADO A LA PENDIENTE

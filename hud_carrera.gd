@@ -1,12 +1,20 @@
 extends CanvasLayer
 
-# HUD de la carrera: vuelta, tiempo, velocidad y cuenta atras del semaforo (amarillo #FFEA00 = UI).
+# HUD de la carrera: vuelta, cronómetros Time Trial, récords, deltas, velocidad y turbo.
 
 const C_UI := Color("#FFEA00")
 const C_AMBIENTE := Color("#00E5FF")
+const C_VERDE_DELTA := Color("#00E676")
+const C_ROJO_DELTA := Color("#FF5252")
+const C_DORADO := Color("#FFD700")
 
 var l_vuelta: Label
-var l_tiempo: Label
+var l_tiempo_vuelta: Label
+var l_tiempo_total: Label
+var l_pb: Label
+var l_delta: Label
+var l_ayuda: Label
+
 var l_vel: Label
 var l_cuenta: Label
 var l_nitro: Label
@@ -24,10 +32,40 @@ func _etiqueta(tam: int, color: Color) -> Label:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	l_vuelta = _etiqueta(34, C_UI)
+	
+	# Panel superior izquierdo: Vueltas, tiempos y PB
+	l_vuelta = _etiqueta(32, C_UI)
 	l_vuelta.position = Vector2(24, 16)
-	l_tiempo = _etiqueta(30, C_AMBIENTE)
-	l_tiempo.position = Vector2(24, 62)
+	
+	l_tiempo_vuelta = _etiqueta(24, C_AMBIENTE)
+	l_tiempo_vuelta.position = Vector2(24, 56)
+	
+	l_tiempo_total = _etiqueta(18, Color("#B0BEC5"))
+	l_tiempo_total.position = Vector2(24, 88)
+	
+	l_pb = _etiqueta(18, C_DORADO)
+	l_pb.position = Vector2(24, 114)
+	
+	# Indicador central de Deltas y Nuevo Récord
+	l_delta = _etiqueta(38, C_VERDE_DELTA)
+	l_delta.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	l_delta.offset_left = -300
+	l_delta.offset_right = 300
+	l_delta.offset_top = 210
+	l_delta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l_delta.add_theme_constant_override("outline_size", 8)
+	
+	# Ayuda en la esquina inferior izquierda
+	l_ayuda = _etiqueta(15, Color("#78909C"))
+	l_ayuda.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	l_ayuda.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	l_ayuda.offset_left = 24
+	l_ayuda.offset_bottom = -16
+	l_ayuda.offset_top = -42
+	l_ayuda.offset_right = 600
+	l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo"
+
+	# Panel inferior derecho: Velocímetro y Turbo
 	l_vel = _etiqueta(44, C_UI)
 	l_vel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	l_vel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -94,11 +132,34 @@ func _process(_delta: float) -> void:
 	var partida := get_tree().get_first_node_in_group("partida")
 	var pista := get_tree().get_first_node_in_group("pista")
 	var jugador := get_tree().get_first_node_in_group("jugador")
+	
 	if partida:
 		var v := mini(int(partida.hechas) + 1, int(partida.metas))
 		l_vuelta.text = "VUELTA %d / %d" % [v, int(partida.metas)]
-		var t := int(ceil(partida.tiempo))
-		l_tiempo.text = "TIEMPO %d:%02d" % [int(float(t) / 60.0), t % 60]
+		
+		var t_v: float = partida.get("tiempo_vuelta") if partida.get("tiempo_vuelta") != null else 0.0
+		var t_c: float = partida.get("tiempo_carrera") if partida.get("tiempo_carrera") != null else 0.0
+		var pb_v: float = partida.get("mejor_vuelta") if partida.get("mejor_vuelta") != null else 0.0
+		
+		l_tiempo_vuelta.text = "VUELTA  %s" % partida.formato_tiempo(t_v)
+		l_tiempo_total.text  = "TOTAL    %s" % partida.formato_tiempo(t_c)
+		l_pb.text            = "RÉCORD  %s" % partida.formato_tiempo(pb_v, true)
+		
+		# Feedback de Split / Récord
+		if partida.get("aviso_record_t") != null and partida.aviso_record_t > 0.0:
+			l_delta.text = "¡NUEVO RÉCORD DE VUELTA!"
+			l_delta.add_theme_color_override("font_color", C_DORADO)
+		elif partida.get("mostrar_delta_t") != null and partida.mostrar_delta_t > 0.0:
+			var d: float = partida.delta_cp
+			if d <= 0.0:
+				l_delta.text = "%.2fs" % d
+				l_delta.add_theme_color_override("font_color", C_VERDE_DELTA)
+			else:
+				l_delta.text = "+%.2fs" % d
+				l_delta.add_theme_color_override("font_color", C_ROJO_DELTA)
+		else:
+			l_delta.text = ""
+
 	if jugador:
 		var kmh := Vector2(jugador.velocity.x, jugador.velocity.z).length() * 3.6
 		l_vel.text = "%d km/h" % int(round(kmh))
