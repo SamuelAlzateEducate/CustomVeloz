@@ -33,18 +33,16 @@ const VELOCIDAD_MARCHAS = [
 ]
 
 # Tono (pitch) de entrada y salida por marcha:
-# Al cambiar de marcha se percibe una caída de tono pronunciada y natural
+# Calibración fiel al original, suave y cálida, sin sobre-agudos
 const PITCH_MARCHAS = [
-	Vector2(0.55, 0.88),  # 1ra
-	Vector2(0.62, 0.92),  # 2da
-	Vector2(0.66, 0.95),  # 3ra
-	Vector2(0.68, 0.97),  # 4ta
-	Vector2(0.70, 0.99),  # 5ta: Nitro
-	Vector2(0.72, 1.00)   # 6ta: Nitro tope
+	Vector2(0.56, 0.89),  # 1ra
+	Vector2(0.63, 0.93),  # 2da
+	Vector2(0.67, 0.96),  # 3ra
+	Vector2(0.69, 0.98),  # 4ta
+	Vector2(0.71, 1.00),  # 5ta: Nitro
+	Vector2(0.73, 1.02)   # 6ta: Nitro tope
 ]
-# Cada marcha termina un poco más grave y la siguiente arranca ~10% más abajo:
-# el tono ya no pega un salto grande al cambiar.
-const PITCH_MAXIMO := 1.0
+const PITCH_MAXIMO := 1.03
 
 # Duración del cambio de marcha (el "bache" de volumen/tono es una curva suave)
 const DURACION_CAMBIO := 0.30
@@ -272,12 +270,11 @@ func _physics_process(delta: float) -> void:
 	
 	var rpm_objetivo = 0.15
 	if acelerando:
-		# Respuesta inmediata del acelerador: sube revoluciones con fuerza
-		# En marchas altas el motor "descansa" en crucero (no se queda al tope)
-		var rpm_tope := 1.0 if marcha_actual < 4 else 0.80
+		# Respuesta ágil pero contenida, manteniendo el tono grave y no chillón
+		var rpm_tope := 1.0 if marcha_actual < 4 else 0.86
 		rpm_objetivo = lerpf(0.35, rpm_tope, ratio_vel)
 		if nitro:
-			rpm_objetivo = 0.92
+			rpm_objetivo = 0.95
 	elif frenando:
 		rpm_objetivo = maxf(0.10, ratio_vel * 0.40)
 	else:
@@ -291,7 +288,7 @@ func _physics_process(delta: float) -> void:
 		tiempo_corte_cambio = maxf(tiempo_corte_cambio - delta, 0.0)
 		env_cambio = sin(PI * (1.0 - tiempo_corte_cambio / DURACION_CAMBIO))
 
-	var tasa_rpm = 4.0 if tiempo_corte_cambio > 0.0 else (5.5 if acelerando else 2.5)
+	var tasa_rpm = 4.0 if tiempo_corte_cambio > 0.0 else (5.6 if acelerando else 2.5)
 	if acelerando and rpm_objetivo < rpm and tiempo_corte_cambio <= 0.0:
 		tasa_rpm = 1.5 # acelerando, las revoluciones solo bajan despacio (sin "tirones" al girar)
 	rpm = move_toward(rpm, rpm_objetivo, tasa_rpm * delta)
@@ -305,7 +302,7 @@ func _physics_process(delta: float) -> void:
 	var pitch_final = lerpf(tonos_marcha.x, tonos_marcha.y, clampf(rpm, 0.0, 1.0))
 	
 	if nitro:
-		pitch_final *= 1.03
+		pitch_final *= 1.04 # Toque suave con el Nitro, sin volverse agudo
 	
 	# Leve caída de tono al cambiar (suave, ida y vuelta)
 	pitch_final *= 1.0 - 0.06 * env_cambio
@@ -313,9 +310,9 @@ func _physics_process(delta: float) -> void:
 	pitch_final = minf(pitch_final, PITCH_MAXIMO)
 	motor_rev.pitch_scale = lerpf(motor_rev.pitch_scale, pitch_final, clampf(delta * 12.0, 0.0, 1.0))
 
-	# Filtro dinámico: en marchas altas se cierra más para quitar el chillido/saturación
+	# Filtro dinámico: cálido y redondo (evita chillidos agudos al límite)
 	if filtro_motor:
-		var cutoff_obj := lerpf(3200.0, 2000.0, clampf((marcha_actual - 1) / 5.0, 0.0, 1.0))
+		var cutoff_obj := lerpf(3400.0, 2400.0, clampf((marcha_actual - 1) / 5.0, 0.0, 1.0))
 		filtro_motor.cutoff_hz = lerpf(filtro_motor.cutoff_hz, cutoff_obj, clampf(delta * 4.0, 0.0, 1.0))
 
 	# Ensure engine rev sound is playing when accelerating
@@ -324,11 +321,9 @@ func _physics_process(delta: float) -> void:
 
 	var target_vol_rev = -32.0
 	if acelerando:
-		# Presencia inmediata sin pasarse de 0 dB (evita saturar)
 		target_vol_rev = -1.0 if not nitro else 0.0
-		# En marchas altas el sonido se aprieta y satura: se baja un poco cada marcha
-		if marcha_actual > 3:
-			target_vol_rev -= (marcha_actual - 3) * 2.0
+		if marcha_actual > 4:
+			target_vol_rev -= 1.0 # Atenuación muy leve para no saturar al límite
 	elif vel_h > 1.5:
 		# Retención y rodamiento a velocidad
 		target_vol_rev = lerpf(-12.0, -4.0, clampf(vel_h / 25.0, 0.0, 1.0))
@@ -338,8 +333,7 @@ func _physics_process(delta: float) -> void:
 	
 	motor_rev.volume_db = lerpf(motor_rev.volume_db, target_vol_rev, clampf(delta * 15.0, 0.0, 1.0))
 
-	# Ralentí / sonido de arranque: solo suena (a) una vez al empezar y
-	# (b) cuando el carro está quieto y mantienes F (o la tecla de derrapar).
+	# Ralentí / sonido de arranque original
 	var quieto = vel_h < 1.5 and not acelerando
 	var target_vol_idle = -60.0
 	if quieto and tecla_f:
@@ -361,6 +355,8 @@ func _physics_process(delta: float) -> void:
 		target_vol_idle = 0.0 # sonido inicial, una sola vez
 	elif motor_idle.playing and motor_idle.volume_db < -50.0:
 		motor_idle.stop()
+	motor_idle.volume_db = lerpf(motor_idle.volume_db, target_vol_idle, clampf(delta * 12.0, 0.0, 1.0))
+	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
 	motor_idle.volume_db = lerpf(motor_idle.volume_db, target_vol_idle, clampf(delta * 12.0, 0.0, 1.0))
 	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
 
