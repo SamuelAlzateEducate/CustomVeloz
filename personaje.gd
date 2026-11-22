@@ -356,13 +356,13 @@ func aplicar_mejora(kmh_extra: float) -> void:
 	tw.tween_interval(0.3)
 	tw.tween_callback(func(): if is_instance_valid(ala): ala.material_override = mat)
 	
-	# Efecto de sonido al recoger la esfera de mejora
+	# Efecto de sonido al recoger la esfera de mejora (Chime arcade suave y limpio)
 	var snd := AudioStreamPlayer.new()
-	var s_path := "res://Sonidos_Carros/CarroRally_Personaje/pop_als_5.wav"
+	var s_path := "res://Sonidos_Carros/CarroRally_Personaje/mejora_pickup.wav"
 	if ResourceLoader.exists(s_path):
 		snd.stream = load(s_path)
-		snd.pitch_scale = 1.7
-		snd.volume_db = 2.0
+		snd.pitch_scale = 1.0
+		snd.volume_db = -12.0
 		add_child(snd)
 		snd.play()
 		snd.finished.connect(snd.queue_free)

@@ -296,20 +296,9 @@ func _physics_process(delta: float) -> void:
 		tasa_rpm = 1.5 # acelerando, las revoluciones solo bajan despacio (sin "tirones" al girar)
 	rpm = move_toward(rpm, rpm_objetivo, tasa_rpm * delta)
 
-	# --- 3. ANTI-LAG (ALS) CONTROLADO (CERO RUIDOS EN PARADO) ---
-	# Solo a alta velocidad (> 50 km/h = 14 m/s) en 3ra marcha o superior
-	if acelerando_antes and not acelerando and rpm > 0.65 and vel_h > 14.0 and marcha_actual >= 3 and bloqueo_pops <= 0.0:
-		pops_pendientes = randi_range(2, 4)
-		temporizador_pop = randf_range(0.04, 0.09)
-
+	# --- 3. ANTI-LAG (ALS) DESACTIVADO (Cero ruidos de pedos al soltar el acelerador o bajar cambios) ---
 	acelerando_antes = acelerando
-
-	if pops_pendientes > 0:
-		temporizador_pop -= delta
-		if temporizador_pop <= 0.0:
-			disparar_pop_als(1.05, 1.30, -2.0)
-			pops_pendientes -= 1
-			temporizador_pop = randf_range(0.08, 0.15)
+	pops_pendientes = 0
 
 	# --- 4. TONO (PITCH SCALE) DEL MOTOR ---
 	var tonos_marcha = PITCH_MARCHAS[marcha_actual - 1]
