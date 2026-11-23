@@ -187,19 +187,7 @@ func _crear_reproductores() -> void:
 	sonido_cambio.bus = "CambioCarro"
 	add_child(sonido_cambio)
 
-	# 4. Derrape / Chillido de neumáticos
-	derrape = AudioStreamPlayer.new()
-	derrape.name = "Derrape"
-	if ResourceLoader.exists(path_base + "derrape_loop.wav"):
-		derrape.stream = _configurar_stream_en_bucle(load(path_base + "derrape_loop.wav"))
-	elif ResourceLoader.exists(path_base + "Derrape_Rally.mp3"):
-		derrape.stream = _configurar_stream_en_bucle(load(path_base + "Derrape_Rally.mp3"))
-	derrape.volume_db = -80.0
-	derrape.autoplay = false
-	add_child(derrape)
-	derrape.play()
-
-	# 5. Banco de detonaciones de escape (Anti-Lag ALS)
+	# 4. Banco de detonaciones de escape (Anti-Lag ALS)
 	for i in range(1, 6):
 		var p_path = path_base + "pop_als_%d.wav" % i
 		if ResourceLoader.exists(p_path):
@@ -233,8 +221,6 @@ func _physics_process(delta: float) -> void:
 	# Asegurar que los bucles nunca se detengan
 	if motor_rev and not motor_rev.playing:
 		motor_rev.play()
-	if derrape and not derrape.playing:
-		derrape.play()
 
 	var vel_h = Vector2(pj.velocity.x, pj.velocity.z).length()
 	var acelerando = Input.is_action_pressed("move_up")
@@ -359,21 +345,6 @@ func _physics_process(delta: float) -> void:
 	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
 	motor_idle.volume_db = lerpf(motor_idle.volume_db, target_vol_idle, clampf(delta * 12.0, 0.0, 1.0))
 	motor_idle.pitch_scale = lerpf(0.96, 1.06, clampf(rpm, 0.0, 1.0) * 0.25)
-
-	# --- 6. CHILLIDO DE NEUMÁTICOS EN DERRAPES ---
-	# El chillido por giro solo suena si el giro es fuerte y sostenido (> 0.35 s);
-	# así el zigzag rápido no genera ráfagas cortas que suenan a "pedito".
-	if absf(direccion_giro) > 0.6 and vel_h > 12.0:
-		tiempo_giro_sostenido += delta
-	else:
-		tiempo_giro_sostenido = 0.0
-	var derrapando = (tecla_derrape and vel_h > 4.0) or tiempo_giro_sostenido > 0.35
-	if derrapando and pj.is_on_floor():
-		var vol_skid = lerpf(-14.0, -3.0, clampf(vel_h / 25.0, 0.0, 1.0))
-		derrape.volume_db = lerpf(derrape.volume_db, vol_skid, clampf(delta * 7.0, 0.0, 1.0))
-		derrape.pitch_scale = lerpf(0.92, 1.22, clampf(vel_h / 25.0, 0.0, 1.0))
-	else:
-		derrape.volume_db = lerpf(derrape.volume_db, -80.0, clampf(delta * 12.0, 0.0, 1.0))
 
 func cambiar_marcha(nueva: int, subiendo: bool) -> void:
 	if nueva == marcha_actual:

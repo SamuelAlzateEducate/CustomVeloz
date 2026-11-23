@@ -19,14 +19,24 @@ const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
 # ---- Ajustes de Manejo e Interpolación del Carro ----
 @export_group("Manejo e Interpolación")
 @export var velocidad_giro: float = 2.4 # Radianes/s de rotación al voltear
-@export var suavizado_volante: float = 12.0 # Factor de interpolación (lerpf) para la dirección
+@export var suavizado_volante_entrada: float = 4.8 # Suavizado al presionar tecla de giro (más bajo = más progresivo en teclado)
+@export var suavizado_volante_retorno: float = 9.5 # Suavizado al soltar la tecla (retorno rápido al centro)
+@export var factor_atenuacion_alta_vel: float = 0.58 # Sensibilidad en curvas a alta velocidad (evita trompos en teclado)
+@export var suavizado_inercia_giro: float = 10.0 # Factor de inercia y fluidez en la rotación del carro
 @export var max_angulo_ruedas: float = 0.50 # ~28° ángulo máximo de dirección de ruedas
-@export var agarre_lateral: float = 8.0 # Factor de interpolación (lerpf) para agarre en curvas
-@export var agarre_derrape: float = 2.5 # Agarre reducido durante el derrape (Barra Espaciadora)
+@export var agarre_lateral: float = 9.0 # Factor de agarre lateral en conducción normal (firme y preciso)
+@export var agarre_derrape: float = 2.2 # Fricción lateral en derrape (permite deslizarse de lado con espacio)
+@export var max_angulo_derrape_deg: float = 36.0 # Ángulo máximo de derrape para evitar trompos incontrolables
+@export var velocidad_min_derrape: float = 2.0 # Rapidez mínima (~7 km/h) para derrape o freno de mano
+@export var impulso_salida_derrape: float = 1.08 # Impulso de tracción al soltar el derrape acelerando
 @export var suavizado_suspension: float = 8.5 # Factor de interpolación (lerpf) de la suspensión
 @export var radio_rueda: float = 0.35 # Radio estimado de llanta para rodamiento realista
 @export var gravedad_en_aire: float = 2.5 # Multiplicador de gravedad cuando está en el aire (más alto = cae más rápido)
 @export var pegado_al_suelo: float = 3.0 # Metros que "chupa" al suelo en bajadas y baches (floor_snap_length)
+@export var suavizado_volante: float = 12.0 # Mantenido por retrocompatibilidad
+
+@export_group("Sonido de Derrape")
+@export var ruta_sonido_derrape: String = "res://Sonidos_Carros/CarroRally_Personaje/Derrape_Rally.mp3"
 
 # Los tres enchufes (otros scripts los cambian; no se borran)
 var multiplicador = 1.0 # 1 = normal, 0.5 = mitad, 0 = quieto
@@ -50,10 +60,15 @@ var rueda_tras_der: Node3D = null # wheels_041
 # Estados internos de interpolación
 var rapidez_actual: float = 0.0
 var volante_actual: float = 0.0
+var giro_angular_actual: float = 0.0
 var angulo_ruedas_actual: float = 0.0
 var rotacion_rodaje: float = 0.0
 var roll_chasis: float = 0.0
 var pitch_chasis: float = 0.0
+var esta_derrapando: bool = false
+var intensidad_derrape: float = 0.0
+var comp_lateral_actual: float = 0.0
+var sonido_derrape: AudioStreamPlayer = null
 
 func _ready():
 	floor_snap_length = pegado_al_suelo
@@ -63,9 +78,34 @@ func _ready():
 		camara = get_viewport().get_camera_3d()
 	
 	_buscar_ruedas()
+	_inicializar_sonido_derrape()
 	
 	if prueba != "Ninguna":
 		_aplicar_prueba(1)
+
+func _inicializar_sonido_derrape() -> void:
+	sonido_derrape = AudioStreamPlayer.new()
+	sonido_derrape.name = "SonidoDerrape"
+	var stream: Resource = null
+	if ResourceLoader.exists(ruta_sonido_derrape):
+		stream = load(ruta_sonido_derrape)
+		if stream is AudioStreamMP3:
+			stream.loop = true
+	elif ResourceLoader.exists("res://Sonidos_Carros/CarroRally_Personaje/derrape_loop.wav"):
+		stream = load("res://Sonidos_Carros/CarroRally_Personaje/derrape_loop.wav")
+	
+	if stream:
+		sonido_derrape.stream = stream
+		print("[personaje] Sonido de derrape inicializado en CharacterBody3D: ", stream.resource_path)
+	sonido_derrape.volume_db = -80.0
+	sonido_derrape.bus = "Master"
+	add_child(sonido_derrape)
+
+func detener_sonido_derrape() -> void:
+	if sonido_derrape and is_instance_valid(sonido_derrape):
+		sonido_derrape.volume_db = -80.0
+		if sonido_derrape.playing:
+			sonido_derrape.stop()
 
 func _buscar_ruedas() -> void:
 	if not modelo_nodo:
@@ -103,28 +143,64 @@ func _physics_process(delta):
 	var input_x = Input.get_axis("move_left", "move_right")
 	var acelerar = Input.is_action_pressed("move_up")
 	var frenar = Input.is_action_pressed("move_down")
-	var derrapando = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
+	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 	
 	var shift_presionado := Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
 	corre = shift_presionado and nitro_ok
-	var speed_max = speed_correr if corre else speed_caminar
-	speed_max *= multiplicador
+	var speed_max: float = (speed_correr if corre else speed_caminar) * multiplicador
 	
-	# 1. INTERPOLACIÓN DEL VOLANTE (Entrada suavizada con lerpf)
-	volante_actual = lerpf(volante_actual, input_x, clampf(suavizado_volante * delta, 0.0, 1.0))
+	# Control de estado de derrape activo (Mecánica de rally arcade / Freno de mano)
+	var puede_derrapar := absf(rapidez_actual) >= velocidad_min_derrape and is_on_floor()
+	var derrape_previo := esta_derrapando
+	# Se activa derrape / freno de mano si se pulsa espacio y hay velocidad suficiente (en recta o en curva)
+	if tecla_derrape and puede_derrapar:
+		esta_derrapando = true
+	elif not tecla_derrape:
+		esta_derrapando = false
+	
+	# Salida del derrape con empuje de tracción si el jugador sigue acelerando
+	if derrape_previo and not esta_derrapando and acelerar and absf(rapidez_actual) > 8.0:
+		rapidez_actual = minf(rapidez_actual * impulso_salida_derrape, speed_max)
+	
+	# 1. INTERPOLACIÓN ASIMÉTRICA DEL VOLANTE (Entrada progresiva y retorno ágil para teclado)
+	var tasa_volante := suavizado_volante_entrada
+	# Si se suelta la tecla o se contravolantea hacia el lado opuesto, regresa con mayor agilidad
+	if absf(input_x) < 0.01 or (signf(input_x) != signf(volante_actual) and absf(volante_actual) > 0.05):
+		tasa_volante = suavizado_volante_retorno
+	volante_actual = lerpf(volante_actual, input_x, clampf(tasa_volante * delta, 0.0, 1.0))
+	
+	# Curva de respuesta progresiva: toques suaves dan microajustes; mantener presionado da giro completo
+	var volante_curva := signf(volante_actual) * pow(absf(volante_actual), 1.25)
+	
+	# Atenuación de sensibilidad dependiente de velocidad (speed-sensitive steering):
+	# A alta velocidad (90-120 km/h) modera la sensibilidad para evitar derrapes bruscos o choques en teclado.
+	# Si se está derrapando activamente, se libera para permitir contravolantear y controlar la cruzada.
+	var factor_alta_vel := 1.0
+	if not esta_derrapando:
+		var t_vel = clampf((absf(rapidez_actual) - 8.0) / maxf(speed_correr - 8.0, 1.0), 0.0, 1.0)
+		factor_alta_vel = lerpf(1.0, factor_atenuacion_alta_vel, t_vel)
 	
 	# 2. INTERPOLACIÓN DEL ÁNGULO DE LAS RUEDAS DELANTERAS (lerpf)
-	# Al doblar hacia la izquierda/derecha, orienta las ruedas correctamente
-	var angulo_obj = volante_actual * max_angulo_ruedas
-	angulo_ruedas_actual = lerpf(angulo_ruedas_actual, angulo_obj, clampf(suavizado_volante * delta, 0.0, 1.0))
+	# Nota: Se invierte el signo (-volante_curva) porque el modelo 3D hijo está rotado 180° en Y;
+	# así, girar a la derecha apunta las ruedas a la derecha y a la izquierda hacia la izquierda.
+	var angulo_obj = -volante_curva * max_angulo_ruedas * factor_alta_vel
+	# Durante el derrape en curva, añade asistencia de contravolante visual si hay deslizamiento lateral
+	if esta_derrapando and absf(comp_lateral_actual) > 0.8:
+		var contravolante = clampf((comp_lateral_actual / maxf(absf(rapidez_actual), 3.0)) * max_angulo_ruedas * 1.2, -max_angulo_ruedas, max_angulo_ruedas)
+		angulo_obj = clampf(angulo_obj + contravolante * 0.4, -max_angulo_ruedas, max_angulo_ruedas)
+	angulo_ruedas_actual = lerpf(angulo_ruedas_actual, angulo_obj, clampf(suavizado_volante_retorno * delta, 0.0, 1.0))
 	
-	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS (Con turbo el carro también acelera)
+	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS (Con freno de mano funcional en recta y curva)
 	var tasa_acel = speed_max / maxf(tiempo_arranque, 0.05)
-	if acelerar or corre:
+	if tecla_derrape and is_on_floor() and absf(rapidez_actual) > 0.5:
+		# Freno de mano: bloqueo de neumáticos traseros -> frenada brusca con derrape / chillido
+		var tasa_freno_mano = (speed_max / 1.1)
+		rapidez_actual = move_toward(rapidez_actual, 0.0, tasa_freno_mano * delta)
+	elif acelerar or corre:
 		rapidez_actual = move_toward(rapidez_actual, speed_max, tasa_acel * delta)
 	elif frenar:
 		if rapidez_actual > 0.5:
-			# Frenada enérgica hacia 0
+			# Frenada normal hacia 0
 			rapidez_actual = move_toward(rapidez_actual, 0.0, (speed_max / 0.75) * delta)
 		else:
 			# Reversa controlada
@@ -133,14 +209,35 @@ func _physics_process(delta):
 		# Desaceleración natural por rozamiento
 		rapidez_actual = move_toward(rapidez_actual, 0.0, (speed_max / 3.5) * delta)
 	
-	# 4. INTERPOLACIÓN DEL GIRO / ROTACIÓN DEL VEHÍCULO
+	# 4. INTERPOLACIÓN DEL GIRO / ROTACIÓN DEL VEHÍCULO CON CONTROL DE ÁNGULO EN DERRAPE
 	# El giro es proporcional a la velocidad (un carro no gira quieto en su propio eje)
 	var factor_velocidad_giro = clampf(absf(rapidez_actual) / maxf(speed_caminar * 0.25, 1.0), 0.15, 1.0)
 	var signo_direccion = -1.0 if rapidez_actual < -0.1 else 1.0
-	# Potenciador de giro al derrapar: permite tomar curvas cerradas de forma ágil y arcade
-	var mult_giro = 1.35 if derrapando else 1.0
-	var delta_giro = -volante_actual * velocidad_giro * factor_velocidad_giro * signo_direccion * mult_giro * delta
-	rotate_y(delta_giro)
+	
+	# Control de derrape: limita el ángulo de deslizamiento para que el carro no trompee ni se descontrole
+	var max_slip_rad := deg_to_rad(max_angulo_derrape_deg)
+	var factor_limite_derrape := 1.0
+	if esta_derrapando:
+		var vel_h_norm = Vector3(velocity.x, 0.0, velocity.z)
+		if vel_h_norm.length_squared() > 4.0:
+			var dir_fwd = -transform.basis.z
+			dir_fwd.y = 0.0
+			dir_fwd = dir_fwd.normalized()
+			var dir_mov = vel_h_norm.normalized()
+			var slip_actual = dir_fwd.signed_angle_to(dir_mov, Vector3.UP)
+			var sentido_giro = -signf(volante_curva)
+			# Si el volante intenta sobrevirar más allá del límite, amortiguar progresivamente el giro
+			if signf(slip_actual) == sentido_giro:
+				var margen = clampf(1.0 - (absf(slip_actual) / max_slip_rad), 0.0, 1.0)
+				factor_limite_derrape = pow(margen, 0.6)
+	
+	var mult_giro = (1.35 * factor_limite_derrape) if esta_derrapando else 1.0
+	var factor_alta = 1.0 if esta_derrapando else factor_alta_vel
+	var giro_objetivo = -volante_curva * velocidad_giro * factor_velocidad_giro * factor_alta * signo_direccion * mult_giro
+	giro_angular_actual = lerpf(giro_angular_actual, giro_objetivo, clampf(suavizado_inercia_giro * delta, 0.0, 1.0))
+	if absf(rapidez_actual) < 0.05:
+		giro_angular_actual = 0.0
+	rotate_y(giro_angular_actual * delta)
 	
 	# 5. ADAPTACIÓN SUAVE A LA INCLINACIÓN DEL SUELO Y PEGADO A LA PENDIENTE
 	var space_state := get_world_3d().direct_space_state
@@ -172,14 +269,41 @@ func _physics_process(delta):
 		var lateral = adelante_vector.cross(up_suave).normalized() # derecha del carro (base sin espejo)
 		transform.basis = Basis(lateral, up_suave, -adelante_vector).orthonormalized()
 	
-	# 6. VELOCIDAD Y AGARRE LATERAL / DERRAPE (Interpolación lerpf)
-	var adelante_objetivo = -transform.basis.z * rapidez_actual
-	avance.x = adelante_objetivo.x
-	avance.z = adelante_objetivo.z
+	# 6. VELOCIDAD Y AGARRE LATERAL / DERRAPE
+	# Descomponemos la velocidad sobre el plano horizontal de la pista en componentes frontal y lateral
+	var v_fwd = -transform.basis.z
+	v_fwd = (v_fwd - up_suave * v_fwd.dot(up_suave)).normalized()
+	var v_lat = transform.basis.x
+	v_lat = (v_lat - up_suave * v_lat.dot(up_suave)).normalized()
 	
-	var agarre = agarre_derrape if derrapando else agarre_lateral
-	velocity.x = lerpf(velocity.x, avance.x + empuje.x, clampf(agarre * delta, 0.0, 1.0))
-	velocity.z = lerpf(velocity.z, avance.z + empuje.z, clampf(agarre * delta, 0.0, 1.0))
+	var vel_plano = Vector3(velocity.x, 0.0, velocity.z)
+	var comp_fwd = vel_plano.dot(v_fwd)
+	var comp_lat = vel_plano.dot(v_lat)
+	
+	if esta_derrapando:
+		if absf(volante_actual) < 0.1 and absf(input_x) < 0.1:
+			# Derrape en recta (freno de mano): las ruedas bloquean, deslizamiento frontal sin trompo
+			comp_lat = lerpf(comp_lat, 0.0, clampf(agarre_lateral * delta, 0.0, 1.0))
+			comp_fwd = move_toward(comp_fwd, rapidez_actual, (speed_max / 1.1) * delta)
+		else:
+			# Derrape en curva: fricción lateral controlada con deslizamiento hacia afuera
+			comp_lat = lerpf(comp_lat, 0.0, clampf(agarre_derrape * delta, 0.0, 1.0))
+			var slide_target = -signf(volante_curva) * minf(absf(rapidez_actual) * 0.38, 8.5)
+			comp_lat = lerpf(comp_lat, slide_target, clampf(3.2 * delta, 0.0, 1.0))
+			comp_fwd = lerpf(comp_fwd, rapidez_actual * 0.93, clampf(4.5 * delta, 0.0, 1.0))
+	else:
+		# Conducción normal con agarre total
+		comp_lat = lerpf(comp_lat, 0.0, clampf(agarre_lateral * delta, 0.0, 1.0))
+		comp_fwd = lerpf(comp_fwd, rapidez_actual, clampf(agarre_lateral * delta, 0.0, 1.0))
+	
+	comp_lateral_actual = comp_lat
+	intensidad_derrape = 0.9 if (esta_derrapando and absf(volante_actual) < 0.1 and absf(rapidez_actual) > 2.0) else clampf(absf(comp_lat) / maxf(absf(comp_fwd) * 0.4, 2.5), 0.0, 1.0)
+	
+	var nueva_vel: Vector3 = v_fwd * comp_fwd + v_lat * comp_lat
+	avance.x = nueva_vel.x
+	avance.z = nueva_vel.z
+	velocity.x = nueva_vel.x + empuje.x
+	velocity.z = nueva_vel.z + empuje.z
 	
 	# Pegado firme al suelo: en pendientes, bajadas y crestas el carro sigue la superficie y no "flota"
 	if sobre_pista and dist_piso < 2.5 and normal_piso.y > 0.25:
@@ -190,7 +314,7 @@ func _physics_process(delta):
 			# Si está cerca del piso pero perdiendo contacto en bajada, lo succiona a la pista
 			velocity.y = minf(velocity.y, vel_y_pendiente) - (dist_piso * 8.0)
 	elif is_on_floor():
-		velocity.y = adelante_objetivo.y
+		velocity.y = nueva_vel.y
 	# 7. ANIMACIÓN E INTERPOLACIÓN DE LAS 4 LLANTAS SEPARADAS
 	if radio_rueda > 0.01:
 		rotacion_rodaje -= (rapidez_actual / radio_rueda) * delta
@@ -206,16 +330,17 @@ func _physics_process(delta):
 	
 	# 8. INTERPOLACIÓN DEL BALANCEO DE CARROCERÍA (Suspensión activa con lerpf)
 	if modelo_nodo:
-		# Roll: inclinación lateral centrífuga en curvas
-		var roll_obj = clampf(-volante_actual * (rapidez_actual / speed_caminar) * 0.05, -0.07, 0.07)
+		# Roll: inclinación lateral centrífuga en curvas y derrapes
+		var factor_roll = 1.35 if esta_derrapando else 1.0
+		var roll_obj = clampf(-volante_curva * (rapidez_actual / speed_caminar) * 0.05 * factor_roll, -0.09, 0.09)
 		roll_chasis = lerpf(roll_chasis, roll_obj, clampf(suavizado_suspension * delta, 0.0, 1.0))
 		
-		# Pitch: cabeceo al acelerar (squat) o frenar (dive)
+		# Pitch: cabeceo al acelerar (squat), frenar (dive) o freno de mano
 		var pitch_obj = 0.0
 		if acelerar:
 			pitch_obj = -0.03 if not corre else -0.05
-		elif frenar and rapidez_actual > 1.0:
-			pitch_obj = 0.035
+		elif (frenar or (tecla_derrape and absf(volante_actual) < 0.2)) and absf(rapidez_actual) > 1.0:
+			pitch_obj = 0.04
 		pitch_chasis = lerpf(pitch_chasis, pitch_obj, clampf(suavizado_suspension * delta, 0.0, 1.0))
 		
 		modelo_nodo.rotation = Vector3(pitch_chasis, PI, roll_chasis)
@@ -232,6 +357,28 @@ func _physics_process(delta):
 	if estado != antes:
 		print("estado ", Estado.keys()[estado], " · rapidez máxima ", kmh, " km/h = ", snappedf(kmh / 3.6, 0.01), " m/s")
 		animar()
+	
+	# 9. CONTROL DIRECTO DEL SONIDO DE DERRAPE (Derrape_Rally.mp3 en el momento exacto)
+	if sonido_derrape and sonido_derrape.stream:
+		var en_freno_mano = tecla_derrape and absf(rapidez_actual) > 1.2
+		var en_derrape_curva = esta_derrapando and (absf(comp_lateral_actual) > 0.6 or intensidad_derrape > 0.15)
+		var debe_sonar = is_on_floor() and (en_freno_mano or en_derrape_curva)
+		
+		if debe_sonar:
+			if not sonido_derrape.playing:
+				sonido_derrape.play()
+			if sonido_derrape.volume_db < -25.0:
+				sonido_derrape.volume_db = -10.0 # Ataque sonoro instantáneo en el momento justo
+			
+			var factor_vel = clampf(absf(rapidez_actual) / 22.0, 0.25, 1.0)
+			var boost_mano = 3.0 if en_freno_mano else 0.0
+			var target_vol = lerpf(-4.0, 3.5, factor_vel) + boost_mano
+			sonido_derrape.volume_db = lerpf(sonido_derrape.volume_db, target_vol, clampf(delta * 18.0, 0.0, 1.0))
+			sonido_derrape.pitch_scale = lerpf(0.96, 1.15, factor_vel)
+		else:
+			sonido_derrape.volume_db = lerpf(sonido_derrape.volume_db, -80.0, clampf(delta * 12.0, 0.0, 1.0))
+			if sonido_derrape.volume_db < -50.0 and sonido_derrape.playing:
+				sonido_derrape.stop()
 	
 	_prueba()
 

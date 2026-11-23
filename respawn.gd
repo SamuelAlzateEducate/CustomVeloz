@@ -93,6 +93,12 @@ func _frenar_jugador(body: Node3D) -> void:
 	body.set("rapidez_actual", 0.0)
 	body.set("volante_actual", 0.0)
 	body.set("angulo_ruedas_actual", 0.0)
+	body.set("giro_angular_actual", 0.0)
+	body.set("esta_derrapando", false)
+	body.set("intensidad_derrape", 0.0)
+	body.set("comp_lateral_actual", 0.0)
+	if body.has_method("detener_sonido_derrape"):
+		body.detener_sonido_derrape()
 	body.set("avance", Vector3.ZERO)
 	body.set("empuje", Vector3.ZERO)
 
