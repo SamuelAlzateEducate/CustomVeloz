@@ -226,7 +226,7 @@ func _physics_process(delta: float) -> void:
 	var acelerando = Input.is_action_pressed("move_up")
 	var frenando = Input.is_action_pressed("move_down")
 	var nitro = pj.corre if "corre" in pj else false
-	var direccion_giro = Input.get_axis("move_left", "move_right")
+	var _direccion_giro = Input.get_axis("move_left", "move_right")
 	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
 	var tecla_f = tecla_derrape or Input.is_key_pressed(KEY_F)
 

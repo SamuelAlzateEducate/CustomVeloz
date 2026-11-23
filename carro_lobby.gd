@@ -1,5 +1,6 @@
 extends Node3D
 
+@export var angulo_inicial_y: float = -175.0  # Frente del carro con vista 3/4 de medio lado hacia la cámara
 @export var velocidad_giro_max: float = 2.2   # Radianes por segundo al mantener presionado
 @export var suavizado_giro: float = 8.0       # Qué tan rápido acelera y frena el giro
 @export var sentido_horario: float = -1.0     # -1.0 o 1.0 según hacia dónde quieras que gire
@@ -10,8 +11,8 @@ var _presionando_carro: bool = false
 var _velocidad_actual: float = 0.0
 
 func _ready() -> void:
-	# Ángulo inicial: de frente pero un "tris de mediolado" (~28 grados)
-	rotation_degrees.y = 28.0
+	# Ángulo inicial: frente del carro hacia la cámara en 3/4 (~ -152° / 208°)
+	rotation_degrees.y = angulo_inicial_y
 	if area_carro:
 		area_carro.input_ray_pickable = true
 		area_carro.input_event.connect(_on_area_3d_input_event)

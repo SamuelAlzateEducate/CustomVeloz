@@ -280,23 +280,6 @@ theme_override_styles/pressed = SubResource("Style_BtnSalirHover")
 theme_override_styles/normal = SubResource("Style_BtnSalirNormal")
 text = "✖  SALIR"
 
-[node name="VBoxEstado" type="VBoxContainer" parent="UI/Control/MargenUI/VBoxIzquierda"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="LblEstado" type="Label" parent="UI/Control/MargenUI/VBoxIzquierda/VBoxEstado"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.462745, 1, 0.0117647, 1)
-theme_override_font_sizes/font_size = 13
-text = "● BÓLIDO CALIBRADO Y LISTO"
-
-[node name="LblCircuito" type="Label" parent="UI/Control/MargenUI/VBoxIzquierda/VBoxEstado"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.898039, 1, 0.8)
-theme_override_font_sizes/font_size = 12
-text = "CIRCUITO SELECCIONADO: ZONA C"
-
 [node name="PanelControles" type="PanelContainer" parent="UI/Control/MargenUI"]
 layout_mode = 2
 size_flags_horizontal = 8
