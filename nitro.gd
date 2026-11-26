@@ -135,8 +135,12 @@ func _actualizar_llamas(delta: float) -> void:
 		_estela.actualizar_estela(activo, _calor)
 
 func _physics_process(delta: float) -> void:
-	var tecla_shift := Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
-	activo = tecla_shift and carga > 0.0 and not bloqueado
+	var tecla_nitro := false
+	if "quiere_nitro" in pj:
+		tecla_nitro = pj.quiere_nitro
+	else:
+		tecla_nitro = Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
+	activo = tecla_nitro and carga > 0.0 and not bloqueado
 	if activo:
 		carga = maxf(0.0, carga - delta / duracion)
 		if carga <= 0.0:

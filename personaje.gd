@@ -11,6 +11,9 @@ const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
 @export var speed_correr = 33.33 # 120 km/h ÷ 3.6 = 33.33 m/s (con nitro, tecla Shift)
 @export var tiempo_arranque = 3.0 # s en llegar a la rapidez máxima
 
+## Jugador 1 usa WASD+SHIFT+ESPACIO+E; Jugador 2 usa Flechas+KP1+KP0+KP2
+@export var jugador_id: int = 1
+
 @export var estado := Estado.QUIETO
 
 @export_enum("Ninguna", "Avanzar 60 cuadros", "Avanzar 60 y soltar", "Avanzar y la acción desde el cuadro 30", "Mantener la acción 2 s", "Avanzar con la acción 60 cuadros", "Diagonal W+D 60 cuadros") var prueba: String = "Ninguna"
@@ -45,8 +48,17 @@ var accion = "" # nombre de una animación que pisa idle/walk
 
 var avance = Vector3.ZERO # la parte de la velocidad que dan las teclas
 var nitro_ok = true # lo pone el nodo Nitro: false si no queda carga
+var quiere_nitro = false # leído por nitro.gd para activar el turbo
 var corre = false # true mientras Shift está presionada y hay nitro
 var kmh = 0.0 # rapidez máxima del estado actual
+
+# Checkpoint y vueltas (para modo 2J)
+var siguiente_cp: int = 0
+var vueltas_completadas: int = 0
+
+# Estado de impacto (trompo por cohete)
+var _impacto_t: float = 0.0
+var _impacto_dura: float = 1.8
 
 # Referencias a componentes y ruedas
 @onready var modelo_nodo: Node3D = get_node_or_null("Modelo")
@@ -54,9 +66,10 @@ var kmh = 0.0 # rapidez máxima del estado actual
 
 # ---- Sistema de Armas (Cohete) ----
 # (sin preload: se carga en runtime para evitar parse errors al arrancar)
-var cohetes_cargados := 1          # 1 cohete inicial para probar de inmediato (máx 3)
+var cohetes_cargados := 0          # Inicia en 0 (solo se adquieren recogiendo esferas rojas, máx 3)
 var _cohete_montado: Node3D = null # nodo visual del cohete en el techo
 var _snd_equipado: AudioStreamPlayer = null
+var _cohete_tecla_previa: bool = false # para detectar just_pressed manual en P2
 
 var rueda_del_izq: Node3D = null # wheels_019
 var rueda_del_der: Node3D = null # wheels_040
@@ -83,10 +96,12 @@ func _ready():
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
 	
+	# En modo 2J el Jugador2 colisiona con rivales también (capa 8)
+	if jugador_id == 2:
+		collision_mask = 3 | 8
+	
 	_buscar_ruedas()
 	_inicializar_sonido_derrape()
-	if cohetes_cargados > 0:
-		call_deferred("_montar_cohete_visual")
 	
 	if prueba != "Ninguna":
 		_aplicar_prueba(1)
@@ -141,6 +156,13 @@ func _buscar_ruedas() -> void:
 func _physics_process(delta):
 	_actualizar_mejoras(delta)
 	_actualizar_cohete(delta)
+	# Trompo de impacto: si está siendo impactado bloquear controles
+	if _impacto_t > 0.0:
+		_impacto_t = maxf(0.0, _impacto_t - delta)
+		var factor_gravedad2 = 1.0 if is_on_floor() else gravedad_en_aire
+		velocity += get_gravity() * factor_gravedad2 * delta
+		move_and_slide()
+		return
 	# Gravedad: en el aire cae más rápido (arcade) para que el carro no flote
 	var factor_gravedad = 1.0 if is_on_floor() else gravedad_en_aire
 	velocity += get_gravity() * factor_gravedad * delta
@@ -148,14 +170,39 @@ func _physics_process(delta):
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
 	
-	# Entradas de control
-	var input_x = Input.get_axis("move_left", "move_right")
-	var acelerar = Input.is_action_pressed("move_up")
-	var frenar = Input.is_action_pressed("move_down")
-	var tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
+	# Entradas de control separadas por jugador_id
+	var input_x: float
+	var acelerar: bool
+	var frenar: bool
+	var tecla_derrape: bool
+	var tecla_nitro: bool
 	
-	var shift_presionado := Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
-	corre = shift_presionado and nitro_ok
+	if jugador_id == 2:
+		# Jugador 2: Flechas + Numpad
+		input_x = float(Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_LEFT))
+		acelerar = Input.is_key_pressed(KEY_UP)
+		frenar = Input.is_key_pressed(KEY_DOWN)
+		tecla_derrape = Input.is_key_pressed(KEY_KP_0) or Input.is_key_pressed(KEY_0)
+		tecla_nitro = Input.is_key_pressed(KEY_KP_1) or Input.is_key_pressed(KEY_1)
+	else:
+		# Jugador 1: WASD + Shift + Espacio + E
+		if ConfigJuego.dos_jugadores:
+			# Separar flechas de WASD en modo 2J
+			input_x = float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A))
+			acelerar = Input.is_key_pressed(KEY_W)
+			frenar = Input.is_key_pressed(KEY_S)
+			tecla_derrape = Input.is_key_pressed(KEY_SPACE)
+			tecla_nitro = Input.is_key_pressed(KEY_SHIFT)
+		else:
+			# Modo 1J: actions normales
+			input_x = Input.get_axis("move_left", "move_right")
+			acelerar = Input.is_action_pressed("move_up")
+			frenar = Input.is_action_pressed("move_down")
+			tecla_derrape = Input.is_action_pressed("derrapar") if InputMap.has_action("derrapar") else Input.is_key_pressed(KEY_SPACE)
+			tecla_nitro = Input.is_action_pressed("correr") or Input.is_key_pressed(KEY_SHIFT)
+	
+	quiere_nitro = tecla_nitro
+	corre = tecla_nitro and nitro_ok
 	var speed_max: float = (speed_correr if corre else speed_caminar) * multiplicador
 	
 	# Control de estado de derrape activo (Mecánica de rally arcade / Freno de mano)
@@ -580,8 +627,18 @@ func recoger_cohete() -> void:
 
 ## Llamado por _actualizar_cohete cada frame; gestiona la tecla E.
 func _actualizar_cohete(_delta: float) -> void:
-	if Input.is_action_just_pressed("disparar_cohete"):
-		_disparar_cohete()
+	var disparo_ok := false
+	if jugador_id == 2:
+		disparo_ok = Input.is_key_pressed(KEY_KP_2) or Input.is_key_pressed(KEY_2)
+		# Detectar just_pressed manualmente para evitar disparo continuo
+		if disparo_ok and not _cohete_tecla_previa:
+			_cohete_tecla_previa = true
+			_disparar_cohete()
+		elif not disparo_ok:
+			_cohete_tecla_previa = false
+	else:
+		if Input.is_action_just_pressed("disparar_cohete"):
+			_disparar_cohete()
 
 func _disparar_cohete() -> void:
 	if cohetes_cargados <= 0:
@@ -617,6 +674,76 @@ func _disparar_cohete() -> void:
 	if cohetes_cargados <= 0:
 		_desmontar_cohete_visual()
 	print("[cohete] ¡DISPARADO! restantes: ", cohetes_cargados)
+
+## Llamado por proyectil_cohete cuando impacta a este jugador.
+func recibir_impacto() -> void:
+	_impacto_t = _impacto_dura
+	# Detener carro bruscamente
+	rapidez_actual = minf(rapidez_actual * 0.15, 3.0)
+	velocity = velocity * 0.1
+	velocity.y = 5.0
+	floor_snap_length = 0.0
+	# Trompo del modelo
+	_animar_trompo_impacto()
+	# Partículas de daño
+	_generar_particulas_danio()
+	# Sonido de impacto
+	_sonido_impacto_jugador()
+	print("[cohete] ¡Jugador ", jugador_id, " impactado! Trompo ", _impacto_dura, "s")
+
+func _animar_trompo_impacto() -> void:
+	var mod := get_node_or_null("Modelo")
+	if not mod:
+		return
+	var tw := create_tween()
+	var orig_y: float = mod.rotation_degrees.y
+	tw.set_parallel(true)
+	tw.tween_property(mod, "rotation_degrees:y", orig_y + 720.0, 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mod, "rotation_degrees:z", 28.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_property(mod, "rotation_degrees:z", -16.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.chain().tween_property(mod, "rotation_degrees:z", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await get_tree().create_timer(1.0).timeout
+	floor_snap_length = pegado_al_suelo
+
+func _generar_particulas_danio() -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.explosiveness = 0.6
+	p.amount = 24
+	p.lifetime = 0.8
+	p.direction = Vector3.UP
+	p.spread = 55.0
+	p.gravity = Vector3(0, -4.0, 0)
+	p.initial_velocity_min = 2.5
+	p.initial_velocity_max = 7.0
+	p.scale_amount_min = 0.08
+	p.scale_amount_max = 0.22
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.35, 0.0)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.35, 0.0)
+	mat.emission_energy_multiplier = 4.0
+	var q := QuadMesh.new()
+	q.size = Vector2(0.14, 0.14)
+	q.material = mat
+	p.mesh = q
+	p.position = Vector3(0, 0.6, 0)
+	add_child(p)
+	get_tree().create_timer(2.0).timeout.connect(func():
+		if is_instance_valid(p): p.queue_free()
+	)
+
+func _sonido_impacto_jugador() -> void:
+	var snd_path := "res://Sonidos_Armas/cohete_impacto.mp3"
+	if ResourceLoader.exists(snd_path):
+		var snd := AudioStreamPlayer3D.new()
+		snd.stream = load(snd_path)
+		snd.volume_db = 1.0
+		snd.max_distance = 60.0
+		add_child(snd)
+		snd.play()
+		snd.finished.connect(snd.queue_free)
 
 ## Montar el modelo visual del cohete sobre el techo del carro.
 ## Solo muestra un cohete (el primero); si ya hay uno montado no duplica.

@@ -1,10 +1,6 @@
 extends Node
 
 # CustomVeloz - Sistema de Modo Time Trial y Gestión de Carrera
-# - Cronómetro de vuelta y carrera (cuenta progresiva con centésimas)
-# - Guardado persistente de Récords (PB Mejor Vuelta y Mejor Tiempo Total) en user://records.cfg
-# - Sistema de Deltas en Checkpoints (comparativa en tiempo real contra el récord: -verde / +rojo)
-# - Reinicio instantáneo con tecla R
 
 enum Estado { JUGANDO, GANO, PERDIO }
 
@@ -18,6 +14,10 @@ static var intentos: int = 1
 var estado = Estado.JUGANDO
 var hechas: int = 0
 var reloj: float = 0.0
+
+# Modo 2 jugadores: vueltas individuales
+var vueltas_p1: int = 0
+var vueltas_p2: int = 0
 
 # Cronómetros Time Trial
 var tiempo_carrera: float = 0.0
@@ -159,3 +159,69 @@ func capturar_pantalla(ruta: String) -> void:
 	if img:
 		img.save_png(ruta)
 		print("[captura] guardada en ", ruta)
+
+
+## Solo en modo 2 jugadores: cada jugador reporta sus vueltas individualmente.
+func avisar_meta_jugador(jugador_id: int) -> void:
+	if estado != Estado.JUGANDO:
+		return
+	var vueltas_max := metas
+	if jugador_id == 1:
+		vueltas_p1 += 1
+		hechas = vueltas_p1
+		tiempo_vuelta = 0.0
+		print("[2J] J1 Vuelta %d completada" % vueltas_p1)
+		if vueltas_p1 >= vueltas_max:
+			ConfigJuego.ganador = 1
+			_mostrar_ganador(1)
+			terminar(Estado.GANO, "¡JUGADOR 1 GANA!")
+	elif jugador_id == 2:
+		vueltas_p2 += 1
+		print("[2J] J2 Vuelta %d completada" % vueltas_p2)
+		if vueltas_p2 >= vueltas_max:
+			ConfigJuego.ganador = 2
+			_mostrar_ganador(2)
+			terminar(Estado.GANO, "¡JUGADOR 2 GANA!")
+
+func _mostrar_ganador(jid: int) -> void:
+	var c := CanvasLayer.new()
+	c.layer = 100
+	
+	var panel := Panel.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.06, 0.1, 0.82)
+	panel.add_theme_stylebox_override("panel", sb)
+	c.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_CENTER)
+	vb.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	vb.grow_vertical = Control.GROW_DIRECTION_BOTH
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+
+	var l_cup := Label.new()
+	l_cup.text = "🏆"
+	l_cup.add_theme_font_size_override("font_size", 68)
+	l_cup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(l_cup)
+
+	var l := Label.new()
+	l.text = "¡JUGADOR %d GANA LA CARRERA!" % jid
+	l.add_theme_font_size_override("font_size", 42)
+	var col_ganador := Color(1.0, 0.92, 0.0) if jid == 1 else Color(1.0, 0.25, 0.25)
+	l.add_theme_color_override("font_color", col_ganador)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	l.add_theme_constant_override("outline_size", 8)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(l)
+
+	var l_sub := Label.new()
+	l_sub.text = "3 vueltas completadas con éxito — Presiona [R] para reiniciar"
+	l_sub.add_theme_font_size_override("font_size", 18)
+	l_sub.add_theme_color_override("font_color", Color(0, 0.9, 1, 1))
+	l_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(l_sub)
+
+	get_tree().root.add_child(c)

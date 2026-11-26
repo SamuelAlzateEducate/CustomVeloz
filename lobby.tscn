@@ -127,6 +127,30 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="Style_Btn2JNormal"]
+bg_color = Color(0.6, 0.0, 0.8, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.0, 0.9, 0.7)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="Style_Btn2JHover"]
+bg_color = Color(0.75, 0.0, 1.0, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.4, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [node name="Lobby" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -267,6 +291,20 @@ theme_override_styles/pressed = SubResource("Style_BtnJugarHover")
 theme_override_styles/normal = SubResource("Style_BtnJugarNormal")
 text = "▶  INICIAR CARRERA"
 
+[node name="BtnDosJugadores" type="Button" parent="UI/Control/MargenUI/VBoxIzquierda/VBoxBotones"]
+custom_minimum_size = Vector2(250, 56)
+layout_mode = 2
+mouse_filter = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.8, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/focus = SubResource("Style_Btn2JHover")
+theme_override_styles/hover = SubResource("Style_Btn2JHover")
+theme_override_styles/pressed = SubResource("Style_Btn2JHover")
+theme_override_styles/normal = SubResource("Style_Btn2JNormal")
+text = "👥  2 JUGADORES"
+
 [node name="BtnSalir" type="Button" parent="UI/Control/MargenUI/VBoxIzquierda/VBoxBotones"]
 custom_minimum_size = Vector2(250, 48)
 layout_mode = 2
@@ -304,40 +342,45 @@ theme_override_constants/separation = 8
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.898039, 1, 1)
 theme_override_font_sizes/font_size = 15
-text = "⚙ CONTROLES DEL BÓLIDO"
+text = "⚙ CONTROLES"
 
 [node name="Sep" type="HSeparator" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
 
 [node name="LblC1" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.92, 0, 1)
 theme_override_font_sizes/font_size = 13
-text = "[ W / ↑ ]  Acelerar"
+text = "— JUGADOR 1 (1 o 2 jugadores) —"
 
 [node name="LblC2" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "[ S / ↓ ]  Frenar / Reversa"
+theme_override_font_sizes/font_size = 12
+text = "[ W / A / S / D ]  Mover"
 
 [node name="LblC3" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "[ ESPACIO ]  Derrape   [ SHIFT ]  Turbo   [ E ]  Misil"
+
+[node name="LblC3b" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.0, 0.9, 1)
 theme_override_font_sizes/font_size = 13
-text = "[ A / D / ← / → ]  Dirección progresiva"
+text = "— JUGADOR 2 (solo en modo 2 jugadores) —"
 
 [node name="LblC4" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.917647, 0, 1)
-theme_override_font_sizes/font_size = 13
-text = "[ ESPACIO ]  Derrape / Freno de mano"
+theme_override_font_sizes/font_size = 12
+text = "[ ↑ ↓ ← → ]  Mover"
 
 [node name="LblC5" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.462745, 1, 0.0117647, 1)
-theme_override_font_sizes/font_size = 13
-text = "[ SHIFT ]  Nitro electromagnético"
+theme_override_font_sizes/font_size = 12
+text = "[ KP0 ]  Derrape   [ KP1 ]  Turbo   [ KP2 ]  Misil"
 
 [node name="LblC6" type="Label" parent="UI/Control/MargenUI/PanelControles/MargenControles/VBoxControles"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.898039, 1, 0.9)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 12
 text = "[ CLIC SOBRE EL CARRO ]  Girar / Inspeccionar"

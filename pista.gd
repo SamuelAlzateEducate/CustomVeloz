@@ -35,29 +35,17 @@ const PASOS_DENSOS := 40
 @export var alturas := PackedFloat32Array([
 	0.0, 0.0, 0.0, 0.0, 1.5, 4.5, 8.5, 12.0, 10.5, 7.5,
 	4.5, 2.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-# Posicion (en metros desde la meta) de las 32 esferas verdes de ALERON (cada ~55 m)
+# Posicion de las 6 esferas verdes de ALERON (escasas, cada ~290 m)
 @export var esferas_s := PackedFloat32Array([
-	20.0, 75.0, 130.0, 185.0, 240.0, 295.0, 350.0, 405.0, 460.0, 515.0,
-	570.0, 625.0, 680.0, 735.0, 790.0, 845.0, 900.0, 955.0, 1010.0, 1065.0,
-	1120.0, 1175.0, 1230.0, 1285.0, 1340.0, 1395.0, 1450.0, 1505.0, 1560.0, 1615.0,
-	1670.0, 1725.0])
+	140.0, 440.0, 740.0, 1040.0, 1340.0, 1640.0])
 @export var esferas_lado := PackedFloat32Array([
-	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
-	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
-	-3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5,
-	-3.0, 3.0])
+	-2.5, 2.5, -3.0, 3.0, 0.0, 2.5])
 @export var mejora_kmh := 15.0
-# Posicion de las 32 esferas amarillas de TURBO intercaladas (cada ~55 m, desfasadas 27.5 m)
+# Posicion de las 6 esferas amarillas de TURBO (escasas, cada ~290 m, desfasadas)
 @export var esferas_nitro_s := PackedFloat32Array([
-	47.5, 102.5, 157.5, 212.5, 267.5, 322.5, 377.5, 432.5, 487.5, 542.5,
-	597.5, 652.5, 707.5, 762.5, 817.5, 872.5, 927.5, 982.5, 1037.5, 1092.5,
-	1147.5, 1202.5, 1257.5, 1312.5, 1367.5, 1422.5, 1477.5, 1532.5, 1587.5, 1642.5,
-	1697.5, 1752.5])
+	280.0, 580.0, 880.0, 1180.0, 1480.0, 1750.0])
 @export var esferas_nitro_lado := PackedFloat32Array([
-	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
-	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
-	-2.5, 2.5, -3.0, 3.0, 0.0, -2.5, 2.5, -3.0, 3.0, 0.0,
-	-2.5, 2.5])
+	2.5, -2.5, 3.0, -3.0, 2.5, -2.5])
 
 var centro: Array[Vector3] = []
 var derecha: Array[Vector3] = []
@@ -422,11 +410,18 @@ func _checkpoints_y_meta() -> void:
 
 func _on_cp(body: Node3D, k: int) -> void:
 	if body.is_in_group("jugador"):
-		if k == siguiente_cp:
-			siguiente_cp += 1
+		# Seguimiento de checkpoint por carro individual
+		var cp_actual: int = body.get("siguiente_cp") if body.get("siguiente_cp") != null else siguiente_cp
+		if k == cp_actual:
+			if body.get("siguiente_cp") != null:
+				body.siguiente_cp += 1
+			else:
+				siguiente_cp += 1
 			var partida := get_tree().get_first_node_in_group("partida")
 			if partida and partida.has_method("registrar_checkpoint_split"):
-				partida.registrar_checkpoint_split(k)
+				# Solo registrar split para Jugador 1
+				if body.get("jugador_id") == null or body.get("jugador_id") == 1:
+					partida.registrar_checkpoint_split(k)
 		var respawn = get_tree().get_first_node_in_group("respawn")
 		if respawn and respawn.has_method("registrar_checkpoint"):
 			respawn.registrar_checkpoint(body.global_position, body.global_rotation.y)
@@ -434,15 +429,25 @@ func _on_cp(body: Node3D, k: int) -> void:
 func _on_meta(body: Node3D) -> void:
 	if not body.is_in_group("jugador"):
 		return
-	if siguiente_cp >= n_cp:
-		siguiente_cp = 0
+	# Usar checkpoint por carro individual
+	var cp_actual: int = body.get("siguiente_cp") if body.get("siguiente_cp") != null else siguiente_cp
+	if cp_actual >= n_cp:
+		if body.get("siguiente_cp") != null:
+			body.siguiente_cp = 0
+		else:
+			siguiente_cp = 0
 		# Reactivar las esferas para la siguiente vuelta
 		for e in _esferas:
 			e.visible = true
 			e.set_deferred("monitoring", true)
 		var partida := get_tree().get_first_node_in_group("partida")
-		if partida and partida.has_method("avisar_meta"):
-			partida.avisar_meta()
+		var jid: int = body.get("jugador_id") if body.get("jugador_id") != null else 1
+		if ConfigJuego.dos_jugadores:
+			if partida and partida.has_method("avisar_meta_jugador"):
+				partida.avisar_meta_jugador(jid)
+		else:
+			if partida and partida.has_method("avisar_meta"):
+				partida.avisar_meta()
 
 func _esferas_verdes() -> void:
 	for k in esferas_s.size():
@@ -521,14 +526,14 @@ func _on_esfera_nitro(body: Node3D, a: Area3D) -> void:
 	print("[pista] esfera amarilla: TURBO 100% recargado + impulso")
 
 # ------------------------------------------------------------------ esferas de cohete (rojo combate)
-# Se colocan 8 esferas rojas distribuidas a lo largo del circuito (cada ~220 m aprox.)
-# Una al recogerla entrega 1 cohete al jugador (máx 3 almacenados).
+# Se colocan 4 esferas rojas escasas en puntos clave del circuito (cada ~440 m)
+# Al recogerla entrega 1 cohete (máx 3 almacenados).
 func _esferas_cohete() -> void:
 	var posiciones_s := PackedFloat32Array([
-		55.0, 275.0, 495.0, 715.0, 935.0, 1155.0, 1375.0, 1595.0
+		210.0, 660.0, 1110.0, 1560.0
 	])
 	var lados := PackedFloat32Array([
-		2.5, -2.5, 3.0, -3.0, 2.5, -2.5, 3.0, -3.0
+		0.0, 3.0, -3.0, 0.0
 	])
 	for k in posiciones_s.size():
 		var s := s_meta + posiciones_s[k]

@@ -128,6 +128,53 @@ func _ready() -> void:
 	l_cuenta.offset_top = 90
 	l_cuenta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
+	layer = 10
+	if ConfigJuego.dos_jugadores:
+		# Adaptar posiciones para la mitad superior de la pantalla
+		var mitad_y := 360.0
+		l_vuelta.text = "J1: VUELTA 1 / 3"
+		
+		l_vel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		l_vel.offset_left = -260
+		l_vel.offset_right = -24
+		l_vel.offset_top = mitad_y - 65
+		l_vel.offset_bottom = mitad_y - 20
+		l_vel.add_theme_font_size_override("font_size", 38)
+		
+		l_nitro.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		l_nitro.offset_left = -260
+		l_nitro.offset_right = -24
+		l_nitro.offset_top = mitad_y - 98
+		l_nitro.offset_bottom = mitad_y - 76
+		l_nitro.add_theme_font_size_override("font_size", 14)
+		
+		pb_nitro.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		pb_nitro.offset_left = -260
+		pb_nitro.offset_right = -24
+		pb_nitro.offset_top = mitad_y - 75
+		pb_nitro.offset_bottom = mitad_y - 67
+		
+		l_aleron.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		l_aleron.offset_left = -260
+		l_aleron.offset_right = -24
+		l_aleron.offset_top = mitad_y - 120
+		l_aleron.offset_bottom = mitad_y - 100
+		
+		l_ayuda.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		l_ayuda.grow_vertical = Control.GROW_DIRECTION_END
+		l_ayuda.offset_left = 24
+		l_ayuda.offset_right = 650
+		l_ayuda.offset_top = mitad_y - 34
+		l_ayuda.offset_bottom = mitad_y - 14
+		l_ayuda.add_theme_font_size_override("font_size", 12)
+		l_ayuda.text = "[W/A/S/D] Conducir   [ESPACIO] Derrape   [SHIFT] Turbo   [E] Misil"
+		
+		l_delta.offset_top = 110
+		l_delta.add_theme_font_size_override("font_size", 28)
+		
+		l_cuenta.offset_top = 60
+		l_cuenta.add_theme_font_size_override("font_size", 72)
+
 func _process(_delta: float) -> void:
 	var partida := get_tree().get_first_node_in_group("partida")
 	var pista := get_tree().get_first_node_in_group("pista")
@@ -135,7 +182,10 @@ func _process(_delta: float) -> void:
 	
 	if partida:
 		var v := mini(int(partida.hechas) + 1, int(partida.metas))
-		l_vuelta.text = "VUELTA %d / %d" % [v, int(partida.metas)]
+		if ConfigJuego.dos_jugadores:
+			l_vuelta.text = "J1: VUELTA %d / %d" % [v, int(partida.metas)]
+		else:
+			l_vuelta.text = "VUELTA %d / %d" % [v, int(partida.metas)]
 		
 		var t_v: float = partida.get("tiempo_vuelta") if partida.get("tiempo_vuelta") != null else 0.0
 		var t_c: float = partida.get("tiempo_carrera") if partida.get("tiempo_carrera") != null else 0.0
@@ -195,9 +245,15 @@ func _process(_delta: float) -> void:
 		else:
 			l_aleron.text = ""
 		if "cohetes_cargados" in jugador and jugador.cohetes_cargados > 0:
-			l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo   [E] MISIL x%d" % jugador.cohetes_cargados
+			if ConfigJuego.dos_jugadores:
+				l_ayuda.text = "[W/A/S/D] Conducir   [ESPACIO] Derrape   [SHIFT] Turbo   [E] MISIL x%d" % jugador.cohetes_cargados
+			else:
+				l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo   [E] MISIL x%d" % jugador.cohetes_cargados
 		else:
-			l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo"
+			if ConfigJuego.dos_jugadores:
+				l_ayuda.text = "[W/A/S/D] Conducir   [ESPACIO] Derrape   [SHIFT] Turbo"
+			else:
+				l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo"
 	if pista:
 		l_cuenta.text = pista.texto_cuenta
 		l_cuenta.add_theme_color_override("font_color", C_UI if pista.en_cuenta else Color("#76FF03"))

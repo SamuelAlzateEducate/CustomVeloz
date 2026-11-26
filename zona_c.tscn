@@ -13,6 +13,7 @@
 [ext_resource type="Script" uid="uid://dxndoouwrf0po" path="res://hud_carrera.gd" id="14_hud"]
 [ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="15_eventos"]
 [ext_resource type="Script" uid="uid://cff24pn56qsma" path="res://escenario_fondo.gd" id="16_escenario"]
+[ext_resource type="Script" path="res://split_screen_carrera.gd" id="17_split"]
 
 [sub_resource type="BoxShape3D" id="KillZoneShape"]
 size = Vector3(1500, 4, 1500)
@@ -66,10 +67,10 @@ material = SubResource("BrilloMat")
 script = ExtResource("13_pista")
 puntos = PackedVector2Array(0, 100, 0, 0, 0, -110, 30, -200, 100, -260, 200, -270, 280, -220, 310, -140, 280, -60, 210, -30, 140, -50, 90, 15, 110, 95, 185, 150, 255, 220, 230, 300, 140, 330, 50, 290, -15, 220, -15, 150)
 alturas = PackedFloat32Array(0, 0, 0, 0, 1.5, 4.5, 8.5, 12, 10.5, 7.5, 4.5, 2, 0.5, 0, 0, 0, 0, 0, 0, 0)
-esferas_s = PackedFloat32Array(20, 75, 130, 185, 240, 295, 350, 405, 460, 515, 570, 625, 680, 735, 790, 845, 900, 955, 1010, 1065, 1120, 1175, 1230, 1285, 1340, 1395, 1450, 1505, 1560, 1615, 1670, 1725)
-esferas_lado = PackedFloat32Array(-3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3)
-esferas_nitro_s = PackedFloat32Array(47.5, 102.5, 157.5, 212.5, 267.5, 322.5, 377.5, 432.5, 487.5, 542.5, 597.5, 652.5, 707.5, 762.5, 817.5, 872.5, 927.5, 982.5, 1037.5, 1092.5, 1147.5, 1202.5, 1257.5, 1312.5, 1367.5, 1422.5, 1477.5, 1532.5, 1587.5, 1642.5, 1697.5, 1752.5)
-esferas_nitro_lado = PackedFloat32Array(-2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5, -3, 3, 0, -2.5, 2.5)
+esferas_s = PackedFloat32Array(140, 440, 740, 1040, 1340, 1640)
+esferas_lado = PackedFloat32Array(-2.5, 2.5, -3, 3, 0, 2.5)
+esferas_nitro_s = PackedFloat32Array(280, 580, 880, 1180, 1480, 1750)
+esferas_nitro_lado = PackedFloat32Array(2.5, -2.5, 3, -3, 2.5, -2.5)
 
 [node name="EscenarioFondo" type="Node3D" parent="." unique_id=987654321]
 script = ExtResource("16_escenario")
@@ -155,3 +156,6 @@ omni_attenuation = 2.0
 [node name="SistemaEventos" type="Node3D" parent="." unique_id=1061094344 node_paths=PackedStringArray("luz_evento")]
 script = ExtResource("15_eventos")
 luz_evento = NodePath("../LuzEvento")
+
+[node name="SplitScreenCarrera" type="Node" parent="." unique_id=2000000001]
+script = ExtResource("17_split")

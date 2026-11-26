@@ -119,9 +119,6 @@ func recibir_impacto():
 	# Fuego y humo saliendo del carro
 	_generar_particulas_daño()
 	
-	# Sonido de explosión / choque
-	_reproducir_sonido_impacto()
-	
 	print(name, " ¡IMPACTADO POR COHETE! Entra en trompo acrobático y pierde el control")
 
 func _animar_trompo_impacto() -> void:

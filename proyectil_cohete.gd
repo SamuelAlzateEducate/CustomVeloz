@@ -80,7 +80,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_vida += delta
 	if _vida >= VIDA_MAX:
-		_detonar(false)
+		_detonar(true)
 		return
 
 	# Buscar objetivo en los primeros fotogramas: SOLO si hay rival adelante
@@ -116,7 +116,12 @@ func _buscar_rival_frontal() -> Node3D:
 	var mejor_dist := RADIO_GUIADO
 	var mejor_rival: Node3D = null
 
-	for rival in get_tree().get_nodes_in_group("rival"):
+	# Buscar en ambos grupos: rivales IA y jugadores humanos
+	var candidatos: Array = []
+	candidatos.append_array(get_tree().get_nodes_in_group("rival"))
+	candidatos.append_array(get_tree().get_nodes_in_group("jugador"))
+
+	for rival in candidatos:
 		if not rival is Node3D or rival == _disparador:
 			continue
 		var diff: Vector3 = rival.global_position - global_position
@@ -150,12 +155,16 @@ func _on_cuerpo_entrado(body: Node) -> void:
 
 func _detonar(con_boom: bool) -> void:
 	_impactado = true
-	# Silenciar vuelo
+	# Cortar y liberar el sonido de vuelo de inmediato para evitar bugs de audio residual
 	if is_instance_valid(_snd_vuelo):
 		_snd_vuelo.stop()
-	# Ocultar modelo
+		_snd_vuelo.queue_free()
+		_snd_vuelo = null
+	# Ocultar y liberar el modelo visual de inmediato
 	if is_instance_valid(_modelo):
 		_modelo.visible = false
+		_modelo.queue_free()
+		_modelo = null
 	# Deshabilitar física
 	set_physics_process(false)
 	set_deferred("monitoring", false)
@@ -164,8 +173,8 @@ func _detonar(con_boom: bool) -> void:
 		_explosion_visual()
 		_sonido_boom()
 
-	# Autodestruir tras 1.5s (deja que el boom suene)
-	await get_tree().create_timer(1.5).timeout
+	# Autodestruir tras 1.6s (para dar tiempo exacto a que termine el boom)
+	await get_tree().create_timer(1.6).timeout
 	queue_free()
 
 func _explosion_visual() -> void:
@@ -231,7 +240,9 @@ func _explosion_visual() -> void:
 	tw.tween_callback(luz.queue_free)
 
 func _sonido_boom() -> void:
-	var snd_path := "res://Sonidos_Armas/cohete_impacto.mp3"
+	var snd_path := "res://Sonidos_Armas/cohete_impacto.wav"
+	if not ResourceLoader.exists(snd_path):
+		snd_path = "res://Sonidos_Armas/cohete_impacto.mp3"
 	if not ResourceLoader.exists(snd_path):
 		return
 	var snd := AudioStreamPlayer3D.new()

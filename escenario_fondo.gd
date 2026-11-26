@@ -18,6 +18,7 @@ const C_TERRENO := Color(0.13, 0.15, 0.20) # Roca pizarra oscura / suelo arcade
 const C_MONTANA := Color(0.20, 0.16, 0.30) # Montañas lejanas violeta / crepúsculo
 const C_ESTRUCTURA := Color(0.18, 0.21, 0.25) # Concreto / metal estructural
 const C_NEON_AZUL := Color(0.0, 0.9, 1.0) # Neón azul de CustomVeloz (#00E5FF)
+const C_NEON_ROSA := Color(1.0, 0.05, 0.55) # Rosa / Magenta Neón (#FF007F)
 const C_NEON_ORO := Color(1.0, 0.85, 0.0) # Dorado turbo
 
 @export var pista_nodo: NodePath = ^"../Pista"
@@ -39,6 +40,7 @@ func _ready() -> void:
 
 func _construir_elementos_pista() -> void:
 	if _pista and "centro" in _pista and _pista.centro.size() > 0:
+		_construir_plataforma_urbana()
 		_construir_pilares()
 		_construir_portico_meta()
 		_construir_lowcity()
@@ -343,17 +345,98 @@ func _construir_portico_meta() -> void:
 	add_child(_crear_malla(v_m, n_m, mat_metal))
 	add_child(_crear_malla(v_n, n_n, mat_neon))
 
-# ------------------------------------------------------------------ 5. Low-City (Edificios, Skyline, Farolas, Gruas)
+# ------------------------------------------------------------------ 5. Plataforma Urbana (Veredas Continuas / Sin Vacío)
+func _construir_plataforma_urbana() -> void:
+	var m: int = _pista.centro.size()
+	if m < 3:
+		return
+
+	var mat_acera := StandardMaterial3D.new()
+	mat_acera.albedo_color = Color(0.12, 0.14, 0.17) # Pavimento de piedra pizarra oscura
+	mat_acera.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mat_acera.roughness = 0.92
+	mat_acera.cull_mode = BaseMaterial3D.CULL_BACK
+
+	var mat_bordillo := StandardMaterial3D.new()
+	mat_bordillo.albedo_color = Color(0.28, 0.33, 0.38) # Bordillo de concreto urbano
+	mat_bordillo.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mat_bordillo.roughness = 0.8
+	mat_bordillo.cull_mode = BaseMaterial3D.CULL_BACK
+
+	var v_acera := PackedVector3Array()
+	var n_acera := PackedVector3Array()
+	var v_bord := PackedVector3Array()
+	var n_bord := PackedVector3Array()
+
+	var mitad_asfalto: float = _pista.ancho * 0.5
+	var ancho_acera: float = 35.0 # 35 metros de plataforma urbana continua a cada lado
+	var alto_bordillo: float = 0.15 # 15cm sobre el asfalto
+
+	for i in range(m):
+		var j := (i + 1) % m
+		var c_i: Vector3 = _pista.centro[i]
+		var c_j: Vector3 = _pista.centro[j]
+		var d_i: Vector3 = _pista.derecha[i]
+		var d_j: Vector3 = _pista.derecha[j]
+
+		for lado: float in [-1.0, 1.0]:
+			var y_base_i := c_i.y + alto_bordillo
+			var y_base_j := c_j.y + alto_bordillo
+
+			# Puntos del bordillo (pegado al asfalto de la pista)
+			var b_i := c_i + d_i * (mitad_asfalto * lado)
+			var b_j := c_j + d_j * (mitad_asfalto * lado)
+			var b_top_i := Vector3(b_i.x, y_base_i, b_i.z)
+			var b_top_j := Vector3(b_j.x, y_base_j, b_j.z)
+			var b_bot_i := Vector3(b_i.x, c_i.y, b_i.z)
+			var b_bot_j := Vector3(b_j.x, c_j.y, b_j.z)
+
+			# Cara vertical del bordillo hacia el asfalto
+			if lado > 0.0:
+				_agregar_quad_plano(v_bord, n_bord, b_bot_i, b_top_i, b_top_j, b_bot_j)
+			else:
+				_agregar_quad_plano(v_bord, n_bord, b_bot_j, b_top_j, b_top_i, b_bot_i)
+
+			# Extremo exterior de la acera (hacia las fachadas de los edificios)
+			var e_i := Vector3(c_i.x + d_i.x * ancho_acera * lado, y_base_i, c_i.z + d_i.z * ancho_acera * lado)
+			var e_j := Vector3(c_j.x + d_j.x * ancho_acera * lado, y_base_j, c_j.z + d_j.z * ancho_acera * lado)
+
+			# Superficie horizontal pavimentada de la acera
+			if lado > 0.0:
+				_agregar_quad_plano(v_acera, n_acera, b_top_i, b_top_j, e_j, e_i)
+			else:
+				_agregar_quad_plano(v_acera, n_acera, b_top_j, b_top_i, e_i, e_j)
+
+			# Faldón exterior vertical que baja al terreno base (cierra el vacío inferior)
+			var e_bot_i := Vector3(e_i.x, altura_suelo_base, e_i.z)
+			var e_bot_j := Vector3(e_j.x, altura_suelo_base, e_j.z)
+			if lado > 0.0:
+				_agregar_quad_plano(v_acera, n_acera, e_i, e_j, e_bot_j, e_bot_i)
+			else:
+				_agregar_quad_plano(v_acera, n_acera, e_j, e_i, e_bot_i, e_bot_j)
+
+	if v_acera.size() > 0:
+		add_child(_crear_malla(v_acera, n_acera, mat_acera))
+	if v_bord.size() > 0:
+		add_child(_crear_malla(v_bord, n_bord, mat_bordillo))
+
+# ------------------------------------------------------------------ 6. Low-City (Edificios Variados, Neones Rosa/Azul, Tiendas)
 func _construir_lowcity() -> void:
 	var escena_a: PackedScene = load("res://Modelos_Escenario/edificio_a.glb")
 	var escena_b: PackedScene = load("res://Modelos_Escenario/edificio_b.glb")
 	var escena_c: PackedScene = load("res://Modelos_Escenario/edificio_c.glb")
+	var escena_d: PackedScene = load("res://Modelos_Escenario/edificio_d.glb")
+	var escena_tiendas: PackedScene = load("res://Modelos_Escenario/edificio_tiendas.glb")
+	var escena_cartel_rosa: PackedScene = load("res://Modelos_Escenario/cartel_neon_rosa.glb")
 	var escena_grua: PackedScene = load("res://Modelos_Escenario/grua_torre.glb")
 	var escena_farola: PackedScene = load("res://Modelos_Escenario/farola_urbana.glb")
 
 	var mesh_a := _obtener_mesh_de_escena(escena_a)
 	var mesh_b := _obtener_mesh_de_escena(escena_b)
 	var mesh_c := _obtener_mesh_de_escena(escena_c)
+	var mesh_d := _obtener_mesh_de_escena(escena_d)
+	var mesh_tiendas := _obtener_mesh_de_escena(escena_tiendas)
+	var mesh_cartel_rosa := _obtener_mesh_de_escena(escena_cartel_rosa)
 	var mesh_grua := _obtener_mesh_de_escena(escena_grua)
 	var mesh_farola := _obtener_mesh_de_escena(escena_farola)
 
@@ -361,9 +444,9 @@ func _construir_lowcity() -> void:
 	var mitad_pista: float = (_pista.ancho * 0.5) if "ancho" in _pista else 7.0
 	var s_meta: float = _pista.s_meta if "s_meta" in _pista else 0.0
 
-	# 1. FAROLAS URBANAS (a lo largo de las barandas, paso ~28m)
+	# 1. FAROLAS URBANAS (a lo largo de las barandas, paso ~24m)
 	if mesh_farola:
-		var paso_f := 28.0
+		var paso_f := 24.0
 		var n_farolas := int(floor(largo_pista / paso_f))
 		var mm_farola := MultiMesh.new()
 		mm_farola.transform_format = MultiMesh.TRANSFORM_3D
@@ -376,6 +459,7 @@ func _construir_lowcity() -> void:
 			var der: Vector3 = _pista.der_en(s)
 			var lado: float = 1.0 if (i % 2 == 0) else -1.0
 			var pos_f: Vector3 = p + der * ((mitad_pista + 0.8) * lado)
+			pos_f.y = p.y + 0.15 # apoyada en la vereda
 			var hacia_pista: Vector3 = (p - pos_f).normalized()
 
 			var t := Transform3D()
@@ -390,106 +474,186 @@ func _construir_lowcity() -> void:
 		mmi_f.multimesh = mm_farola
 		add_child(mmi_f)
 
-	# 2. EDIFICIOS MEDIOS (Edificio A y Edificio B flanqueando el circuito)
-	var paso_edif := 34.0
+	# 2. CARTELES / BANNERS VERTICALES DE NEÓN ROSA (estilo Cyberpunk callejero)
+	if mesh_cartel_rosa:
+		var paso_cartel := 34.0
+		var n_carteles := int(floor(largo_pista / paso_cartel))
+		var mm_carteles := MultiMesh.new()
+		mm_carteles.transform_format = MultiMesh.TRANSFORM_3D
+		mm_carteles.mesh = mesh_cartel_rosa
+
+		var transforms_carteles: Array[Transform3D] = []
+
+		for i in range(n_carteles):
+			var s := float(i) * paso_cartel + 8.0
+			var diff_m: float = absf(fposmod(s - s_meta + largo_pista * 0.5, largo_pista) - largo_pista * 0.5)
+			if diff_m < 16.0:
+				continue # Despejar el pórtico de meta
+
+			var p: Vector3 = _pista.pos_en(s)
+			var der: Vector3 = _pista.der_en(s)
+			var lado: float = -1.0 if (i % 2 == 0) else 1.0
+			var pos_c: Vector3 = p + der * ((mitad_pista + 2.8) * lado)
+			pos_c.y = p.y + 0.15
+
+			var hacia_pista: Vector3 = (p - pos_c)
+			hacia_pista.y = 0.0
+			hacia_pista = hacia_pista.normalized()
+
+			var t := Transform3D()
+			t.basis = Basis.looking_at(-hacia_pista, Vector3.UP)
+			t.origin = pos_c
+			transforms_carteles.append(t)
+
+		if transforms_carteles.size() > 0:
+			mm_carteles.instance_count = transforms_carteles.size()
+			for i in range(transforms_carteles.size()):
+				mm_carteles.set_instance_transform(i, transforms_carteles[i])
+			var mmi_carteles := MultiMeshInstance3D.new()
+			mmi_carteles.name = "CartelesRosa_MultiMesh"
+			mmi_carteles.multimesh = mm_carteles
+			add_child(mmi_carteles)
+
+	# 3. LÍNEA FRONTAL DE EDIFICIOS (Vitrinas Comerciales, Edificio D Neón Rosa, Tiendas, Oficinas)
+	var paso_edif := 20.0
 	var n_pasos := int(floor(largo_pista / paso_edif))
-	
-	var transforms_a: Array[Transform3D] = []
-	var transforms_b: Array[Transform3D] = []
+
+	var tr_tiendas: Array[Transform3D] = []
+	var tr_d: Array[Transform3D] = []
+	var tr_b: Array[Transform3D] = []
+	var tr_a: Array[Transform3D] = []
 
 	for i in range(n_pasos):
 		var s := float(i) * paso_edif
 		var p: Vector3 = _pista.pos_en(s)
 		var der: Vector3 = _pista.der_en(s)
 
-		# Colocar edificios en ambos lados con variaciones
-		for lado in [-1.0, 1.0]:
-			var seed_val := float(i * 3 + int(lado * 2.0) + 17)
-			var r1 := fposmod(sin(seed_val * 12.9898) * 43758.5453, 1.0)
-			var r2 := fposmod(sin((seed_val + 3.1) * 78.233) * 21345.1234, 1.0)
+		# No poblar fachadas en el puente elevado extremo para dejar ver el valle y skyline
+		if p.y >= 3.5:
+			continue
 
-			var dist: float = 16.0 + r1 * 10.0
+		# Despejar la recta de meta (32m antes y después del pórtico) para lucir la llegada, semáforo y público
+		var diff_meta: float = absf(fposmod(s - s_meta + largo_pista * 0.5, largo_pista) - largo_pista * 0.5)
+		if diff_meta < 32.0:
+			continue
+
+		for lado in [-1.0, 1.0]:
+			var seed_val := float(i * 5 + int(lado * 3.0) + 23)
+			var r1: float = fposmod(sin(seed_val * 12.9898) * 43758.5453, 1.0)
+			var r2: float = fposmod(sin((seed_val + 3.1) * 78.233) * 21345.1234, 1.0)
+
+			var dist: float = 22.0 + r1 * 5.0 # Situados con holgura sobre la acera (35m), sin invadir la calzada
 			var pos_ed: Vector3 = p + der * (dist * lado)
-			pos_ed.y = minf(p.y - 0.2, altura_suelo_base)
+			pos_ed.y = p.y + 0.15 # Apoyado exactamente en el suelo de la vereda (0 flotando)
+
+			# Verificar matemáticamente que no invada ninguna curva ni sección transversal de la pista
+			if _distancia_a_pista_2d(Vector2(pos_ed.x, pos_ed.z)) < 18.0:
+				continue
 
 			var hacia_p: Vector3 = (p - pos_ed)
 			hacia_p.y = 0.0
 			hacia_p = hacia_p.normalized()
 
-			var escala_y := 0.85 + r2 * 0.5
-			var escala_xz := 0.9 + r1 * 0.25
+			var escala_y: float = 0.9 + r2 * 0.4
+			var escala_xz: float = 0.95 + r1 * 0.2
 
 			var basis_e := Basis.looking_at(-hacia_p, Vector3.UP)
 			basis_e = basis_e.scaled(Vector3(escala_xz, escala_y, escala_xz))
 			var t := Transform3D(basis_e, pos_ed)
 
-			if int(seed_val) % 2 == 0:
-				transforms_a.append(t)
-			else:
-				transforms_b.append(t)
+			var tipo := int(seed_val) % 4
+			match tipo:
+				0: tr_tiendas.append(t)
+				1: tr_d.append(t)
+				2: tr_b.append(t)
+				3: tr_a.append(t)
 
-	if mesh_a and transforms_a.size() > 0:
-		var mm_a := MultiMesh.new()
-		mm_a.transform_format = MultiMesh.TRANSFORM_3D
-		mm_a.mesh = mesh_a
-		mm_a.instance_count = transforms_a.size()
-		for i in range(transforms_a.size()):
-			mm_a.set_instance_transform(i, transforms_a[i])
-		var mmi_a := MultiMeshInstance3D.new()
-		mmi_a.name = "EdificiosA_MultiMesh"
-		mmi_a.multimesh = mm_a
-		add_child(mmi_a)
+	if mesh_tiendas and tr_tiendas.size() > 0:
+		var mm_tiendas := MultiMesh.new()
+		mm_tiendas.transform_format = MultiMesh.TRANSFORM_3D
+		mm_tiendas.mesh = mesh_tiendas
+		mm_tiendas.instance_count = tr_tiendas.size()
+		for i in range(tr_tiendas.size()): mm_tiendas.set_instance_transform(i, tr_tiendas[i])
+		var mmi_t := MultiMeshInstance3D.new()
+		mmi_t.name = "EdificiosTiendas_MultiMesh"
+		mmi_t.multimesh = mm_tiendas
+		add_child(mmi_t)
 
-	if mesh_b and transforms_b.size() > 0:
+	if mesh_d and tr_d.size() > 0:
+		var mm_d := MultiMesh.new()
+		mm_d.transform_format = MultiMesh.TRANSFORM_3D
+		mm_d.mesh = mesh_d
+		mm_d.instance_count = tr_d.size()
+		for i in range(tr_d.size()): mm_d.set_instance_transform(i, tr_d[i])
+		var mmi_d := MultiMeshInstance3D.new()
+		mmi_d.name = "EdificiosD_MultiMesh"
+		mmi_d.multimesh = mm_d
+		add_child(mmi_d)
+
+	if mesh_b and tr_b.size() > 0:
 		var mm_b := MultiMesh.new()
 		mm_b.transform_format = MultiMesh.TRANSFORM_3D
 		mm_b.mesh = mesh_b
-		mm_b.instance_count = transforms_b.size()
-		for i in range(transforms_b.size()):
-			mm_b.set_instance_transform(i, transforms_b[i])
+		mm_b.instance_count = tr_b.size()
+		for i in range(tr_b.size()): mm_b.set_instance_transform(i, tr_b[i])
 		var mmi_b := MultiMeshInstance3D.new()
 		mmi_b.name = "EdificiosB_MultiMesh"
 		mmi_b.multimesh = mm_b
 		add_child(mmi_b)
 
-	# 3. RASCACIELOS DE FONDO / SKYLINE (Edificio C - torres monumentales)
-	if mesh_c:
-		var paso_c := 60.0
-		var n_c := int(floor(largo_pista / paso_c))
-		var transforms_c: Array[Transform3D] = []
+	if mesh_a and tr_a.size() > 0:
+		var mm_a := MultiMesh.new()
+		mm_a.transform_format = MultiMesh.TRANSFORM_3D
+		mm_a.mesh = mesh_a
+		mm_a.instance_count = tr_a.size()
+		for i in range(tr_a.size()): mm_a.set_instance_transform(i, tr_a[i])
+		var mmi_a := MultiMeshInstance3D.new()
+		mmi_a.name = "EdificiosA_MultiMesh"
+		mmi_a.multimesh = mm_a
+		add_child(mmi_a)
 
+	# 4. RASCACIELOS DE FONDO / SKYLINE DENSO (Cierra el horizonte, sin vacío)
+	var paso_c := 28.0
+	var n_c := int(floor(largo_pista / paso_c))
+	var transforms_skyline: Array[Transform3D] = []
+
+	if mesh_c or mesh_d:
 		for i in range(n_c):
-			var s := float(i) * paso_c + 12.0
+			var s := float(i) * paso_c + 6.0
 			var p: Vector3 = _pista.pos_en(s)
 			var der: Vector3 = _pista.der_en(s)
-			var lado := 1.0 if (i % 2 == 0) else -1.0
-			var r := fposmod(sin(float(i) * 37.123) * 65432.1, 1.0)
+			var lado: float = 1.0 if (i % 2 == 0) else -1.0
+			var r: float = fposmod(sin(float(i) * 37.123) * 65432.1, 1.0)
 
-			var dist: float = 50.0 + r * 45.0
+			var dist: float = 46.0 + r * 30.0 # Dense skyline depth (46m to 76m)
 			var pos_c: Vector3 = p + der * (dist * lado)
 			pos_c.y = altura_suelo_base
 
-			var escala_y := 1.2 + r * 1.4
-			var escala_xz := 1.1 + r * 0.4
+			# Garantizar que ninguna torre de fondo quede cerca de ninguna parte del circuito
+			if _distancia_a_pista_2d(Vector2(pos_c.x, pos_c.z)) < 26.0:
+				continue
 
-			var rot_y := r * TAU
+			var escala_y: float = 1.4 + r * 1.5 # Torres mas altas y elegantes (hasta 90-110m)
+			var escala_xz: float = 1.2 + r * 0.5
+
+			var rot_y: float = r * TAU
 			var basis_c := Basis(Vector3.UP, rot_y)
 			basis_c = basis_c.scaled(Vector3(escala_xz, escala_y, escala_xz))
-			transforms_c.append(Transform3D(basis_c, pos_c))
+			transforms_skyline.append(Transform3D(basis_c, pos_c))
 
-		if transforms_c.size() > 0:
-			var mm_c := MultiMesh.new()
-			mm_c.transform_format = MultiMesh.TRANSFORM_3D
-			mm_c.mesh = mesh_c
-			mm_c.instance_count = transforms_c.size()
-			for i in range(transforms_c.size()):
-				mm_c.set_instance_transform(i, transforms_c[i])
-			var mmi_c := MultiMeshInstance3D.new()
-			mmi_c.name = "Skyline_MultiMesh"
-			mmi_c.multimesh = mm_c
-			add_child(mmi_c)
+		if transforms_skyline.size() > 0:
+			var mm_sky := MultiMesh.new()
+			mm_sky.transform_format = MultiMesh.TRANSFORM_3D
+			mm_sky.mesh = mesh_c if mesh_c else mesh_d
+			mm_sky.instance_count = transforms_skyline.size()
+			for i in range(transforms_skyline.size()):
+				mm_sky.set_instance_transform(i, transforms_skyline[i])
+			var mmi_sky := MultiMeshInstance3D.new()
+			mmi_sky.name = "SkylineDenso_MultiMesh"
+			mmi_sky.multimesh = mm_sky
+			add_child(mmi_sky)
 
-	# 4. GRUAS TORRE (gruas en construccion con luces amarillas en el horizonte)
+	# 5. GRUAS TORRE EN CONSTRUCCIÓN
 	if mesh_grua:
 		var mm_grua := MultiMesh.new()
 		mm_grua.transform_format = MultiMesh.TRANSFORM_3D
@@ -506,12 +670,12 @@ func _construir_lowcity() -> void:
 			var s := puntos_grua[g]
 			var p: Vector3 = _pista.pos_en(s)
 			var der: Vector3 = _pista.der_en(s)
-			var lado := 1.0 if (g % 2 == 0) else -1.0
-			var pos_g: Vector3 = p + der * ((45.0 + float(g) * 8.0) * lado)
+			var lado: float = 1.0 if (g % 2 == 0) else -1.0
+			var pos_g: Vector3 = p + der * ((48.0 + float(g) * 6.0) * lado)
 			pos_g.y = altura_suelo_base
 
 			var rot_y := float(g) * 1.6 + 0.5
-			var basis_g := Basis(Vector3.UP, rot_y).scaled(Vector3(1.3, 1.4, 1.3))
+			var basis_g := Basis(Vector3.UP, rot_y).scaled(Vector3(1.3, 1.45, 1.3))
 			mm_grua.set_instance_transform(g, Transform3D(basis_g, pos_g))
 
 		var mmi_grua := MultiMeshInstance3D.new()
@@ -519,12 +683,12 @@ func _construir_lowcity() -> void:
 		mmi_grua.multimesh = mm_grua
 		add_child(mmi_grua)
 
-	# 5. LETREROS NEON CUSTOMVELOZ
-	_crear_letrero_neon(s_meta + 25.0, -18.0, 7.5)
-	_crear_letrero_neon(s_meta + 300.0, 20.0, 9.0)
-	_crear_letrero_neon(s_meta + 700.0, -22.0, 8.0)
+	# 6. LETREROS NEON CUSTOMVELOZ (Cian y Rosa)
+	_crear_letrero_neon(s_meta + 25.0, -17.5, 7.8, C_NEON_AZUL)
+	_crear_letrero_neon(s_meta + 220.0, 18.0, 8.5, C_NEON_ROSA)
+	_crear_letrero_neon(s_meta + 650.0, -18.5, 8.0, C_NEON_AZUL)
 
-func _crear_letrero_neon(s: float, lado_dist: float, altura: float) -> void:
+func _crear_letrero_neon(s: float, lado_dist: float, altura: float, color_neon: Color) -> void:
 	if not _pista:
 		return
 	var p: Vector3 = _pista.pos_en(s)
@@ -537,15 +701,15 @@ func _crear_letrero_neon(s: float, lado_dist: float, altura: float) -> void:
 
 	var lbl := Label3D.new()
 	lbl.text = "CUSTOMVELOZ"
-	lbl.font_size = 54
-	lbl.modulate = C_NEON_AZUL
-	lbl.outline_modulate = Color(0.0, 0.3, 0.4)
-	lbl.outline_size = 8
+	lbl.font_size = 56
+	lbl.modulate = color_neon
+	lbl.outline_modulate = Color(0.1, 0.0, 0.15) if color_neon == C_NEON_ROSA else Color(0.0, 0.3, 0.4)
+	lbl.outline_size = 10
 	lbl.position = pos
 	lbl.basis = Basis.looking_at(-hacia_pista, Vector3.UP)
 	add_child(lbl)
 
-# ------------------------------------------------------------------ 6. Público Animado (MultiMesh Low-Poly)
+# ------------------------------------------------------------------ 7. Público Animado con Bengalas/Luces de Fiesta
 var _publico_salto: MultiMeshInstance3D
 var _publico_arriba: MultiMeshInstance3D
 var _tiempo_publico := 0.0
@@ -591,21 +755,20 @@ func _construir_publico() -> void:
 
 	var conteo := [0, 0, 0, 0]
 
-	# Distribucion de ~200 espectadores:
-	# 120 concentrados en la recta de meta (tribunas a ambos lados)
-	# 80 distribuidos en curvas clave
+	# Distribución de ~200 espectadores:
+	# Concentrados en recta principal de meta y curvas amplias urbanas
 	var puntos_s: Array[float] = []
-	# Recta meta
-	for i in range(60):
-		var offset_s := (float(i) - 30.0) * 3.5
+	# Recta meta densa
+	for i in range(70):
+		var offset_s := (float(i) - 35.0) * 3.2
 		puntos_s.append(s_meta + offset_s)
 		puntos_s.append(s_meta + offset_s)
 
-	# Curvas
-	for c in [0.25, 0.45, 0.70, 0.85]:
-		for i in range(10):
-			puntos_s.append(largo_pista * c + float(i) * 3.0)
-			puntos_s.append(largo_pista * c + float(i) * 3.0)
+	# Zonas de curvas urbanas
+	for c in [0.22, 0.40, 0.65, 0.82]:
+		for i in range(12):
+			puntos_s.append(largo_pista * c + float(i) * 2.8)
+			puntos_s.append(largo_pista * c + float(i) * 2.8)
 
 	var total_puntos := puntos_s.size()
 	for i in range(total_puntos):
@@ -615,20 +778,26 @@ func _construir_publico() -> void:
 
 		var s: float = puntos_s[i]
 		var p: Vector3 = _pista.pos_en(s)
-		var der: Vector3 = _pista.der_en(s)
-		var lado := 1.0 if (i % 2 == 0) else -1.0
+
+		# REGLA FUNDAMENTAL: Solo colocar espectadores en tramos urbanos a nivel de suelo
+		# (nunca flotando en el puente aéreo sobre el cañón)
+		if p.y >= 2.0:
+			continue
+
+		var der: Vector3 = _pista.derecha[int(floor(fposmod(s, largo_pista) / largo_pista * float(_pista.centro.size())))] if "derecha" in _pista else _pista.der_en(s)
+		var lado: float = 1.0 if (i % 2 == 0) else -1.0
 
 		var r_dist: float = fposmod(sin(float(i) * 19.123) * 31415.9, 1.0)
-		var dist: float = mitad_pista + 1.2 + r_dist * 1.8
+		var dist: float = mitad_pista + 1.2 + r_dist * 2.2 # Entre 8.2m y 10.4m (en plena vereda)
 		var pos_esp: Vector3 = p + der * (dist * lado)
-		pos_esp.y = p.y
+		pos_esp.y = p.y + 0.15 # Apoyado exactamente en el suelo de la acera (cero flotación)
 
 		var hacia_p: Vector3 = (p - pos_esp)
 		hacia_p.y = 0.0
 		hacia_p = hacia_p.normalized()
 
-		# Variacion sutil de rotacion para naturalidad
-		var ang_var := (r_dist - 0.5) * 0.4
+		# Variación sutil de rotación para naturalidad
+		var ang_var := (r_dist - 0.5) * 0.35
 		var basis_esp := Basis.looking_at(-hacia_p, Vector3.UP).rotated(Vector3.UP, ang_var)
 		var t := Transform3D(basis_esp, pos_esp)
 
