@@ -42,50 +42,54 @@ func registrar_checkpoint(pos: Vector3, yaw: float) -> void:
 		checkpoints_pasados.append(pos)
 	print("[respawn] nuevo checkpoint registrado: ", pos)
 
+func registrar_checkpoint_jugador(body: Node3D, pos: Vector3, yaw: float) -> void:
+	if is_instance_valid(body):
+		body.set_meta("ultimo_cp", pos)
+		body.set_meta("ultimo_yaw", yaw)
+		if not pos in checkpoints_pasados:
+			checkpoints_pasados.append(pos)
+		print("[respawn] nuevo checkpoint para ", body.name, ": ", pos)
+
 func _physics_process(_delta: float) -> void:
-	if reapareciendo:
-		return
 	var limite := global_position.y - profundidad_respaldo
 	for j in get_tree().get_nodes_in_group("jugador"):
 		if not (j is Node3D):
 			continue
-		# Primer cuadro: guardar hacia dónde mira el carro al empezar
-		if not tiene_yaw:
-			ultimo_yaw = j.global_rotation.y
-			tiene_yaw = true
-		if j.global_position.y < limite:
+		if not j.has_meta("ultimo_cp"):
+			var default_inicio := Vector3(3.5, 0.05, 11.0) if j.get("jugador_id") == 2 else Vector3(0.0, 0.05, 11.0)
+			j.set_meta("ultimo_cp", default_inicio)
+			j.set_meta("ultimo_yaw", j.global_rotation.y)
+		if j.global_position.y < limite and not j.get_meta("reapareciendo", false):
 			_reaparecer(j)
-			break
 
 func _on_body_entered(body: Node3D) -> void:
-	if body.is_in_group("jugador"):
+	if body.is_in_group("jugador") and not body.get_meta("reapareciendo", false):
 		_reaparecer(body)
 
 func _reaparecer(body: Node3D) -> void:
-	if reapareciendo:
-		return
-	reapareciendo = true
-	print("[respawn] jugador cayó al vacío — reapareciendo en ", snappedf(tiempo_respawn, 0.01), "s")
+	body.set_meta("reapareciendo", true)
+	print("[respawn] ", body.name, " cayó al vacío — reapareciendo en ", snappedf(tiempo_respawn, 0.01), "s")
 	# Desactivar control del jugador brevemente
 	body.set_physics_process(false)
 	_frenar_jugador(body)
 	# Esperar el tiempo de respawn
 	await get_tree().create_timer(tiempo_respawn).timeout
 	if not is_instance_valid(body):
-		reapareciendo = false
 		return
 	# Mecánica 5: al reaparecer pierde la última pieza obtenida
 	if body.has_method("quitar_ultima_mejora"):
 		body.quitar_ultima_mejora()
-	# Reubicar en el último checkpoint, derecho y mirando hacia donde iba la pista
-	body.global_position = ultimo_checkpoint + Vector3(0, 1, 0)
-	if tiene_yaw:
-		body.global_transform.basis = Basis(Vector3.UP, ultimo_yaw)
-	# Borrar también la velocidad "interna" del carro: si no, sale disparado otra vez
+	# Reubicar en su último checkpoint respectivo
+	var default_cp := Vector3(3.5, 0.05, 11.0) if body.get("jugador_id") == 2 else Vector3(0.0, 0.05, 11.0)
+	var pos: Vector3 = body.get_meta("ultimo_cp", default_cp)
+	var yaw: float = body.get_meta("ultimo_yaw", 0.0)
+	body.global_position = pos + Vector3(0, 0.8, 0)
+	body.global_transform.basis = Basis(Vector3.UP, yaw)
+	# Borrar también la velocidad interna del carro
 	_frenar_jugador(body)
 	body.set_physics_process(true)
-	reapareciendo = false
-	print("[respawn] jugador reubicado en checkpoint: ", ultimo_checkpoint)
+	body.set_meta("reapareciendo", false)
+	print("[respawn] ", body.name, " reubicado en checkpoint: ", pos)
 
 func _frenar_jugador(body: Node3D) -> void:
 	body.set("velocity", Vector3.ZERO)

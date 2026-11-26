@@ -22,6 +22,7 @@ var vueltas_p2: int = 0
 # Cronómetros Time Trial
 var tiempo_carrera: float = 0.0
 var tiempo_vuelta: float = 0.0
+var tiempo_vuelta_p2: float = 0.0
 var carrera_iniciada: bool = false
 
 # Récords persistentes (Cargados de user://records.cfg)
@@ -69,6 +70,7 @@ func _physics_process(delta: float) -> void:
 	carrera_iniciada = true
 	tiempo_carrera += delta
 	tiempo_vuelta += delta
+	tiempo_vuelta_p2 += delta
 
 func registrar_checkpoint_split(cp_index: int) -> void:
 	splits_actuales[cp_index] = tiempo_vuelta
@@ -177,6 +179,7 @@ func avisar_meta_jugador(jugador_id: int) -> void:
 			terminar(Estado.GANO, "¡JUGADOR 1 GANA!")
 	elif jugador_id == 2:
 		vueltas_p2 += 1
+		tiempo_vuelta_p2 = 0.0
 		print("[2J] J2 Vuelta %d completada" % vueltas_p2)
 		if vueltas_p2 >= vueltas_max:
 			ConfigJuego.ganador = 2

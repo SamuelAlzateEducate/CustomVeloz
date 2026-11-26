@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dwj4xx65cn6k4"]
 
-[ext_resource type="Script" uid="uid://i5ifxkmewd1" path="res://proyectil_cohete.gd" id="1_cohete_script"]
+[ext_resource type="Script" uid="uid://daqfiqsyok0b2" path="res://proyectil_cohete.gd" id="1_cohete_script"]
 
 [node name="ProyectilCohete" type="Area3D" unique_id=1862931717]
 script = ExtResource("1_cohete_script")

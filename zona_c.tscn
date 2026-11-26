@@ -5,15 +5,15 @@
 [ext_resource type="Script" uid="uid://c3f1w6y7ay111" path="res://ciclo_dia.gd" id="3_e2xqd"]
 [ext_resource type="PackedScene" uid="uid://bss3wrijjf7fg" path="res://personaje.tscn" id="5_toaxk"]
 [ext_resource type="Script" uid="uid://c6gfv2whmnbjv" path="res://luz_jugador.gd" id="6_e2xqd"]
-[ext_resource type="Script" uid="uid://b7lmcbxhk0vr1" path="res://partida.gd" id="7_partida"]
+[ext_resource type="Script" uid="uid://bgy17dylf5nh1" path="res://partida.gd" id="7_partida"]
 [ext_resource type="PackedScene" uid="uid://b18r8kneeliyy" path="res://rival.tscn" id="10_rival_scene"]
 [ext_resource type="PackedScene" uid="uid://dt7x8g3rival2" path="res://rival2.tscn" id="11_rival2_scene"]
-[ext_resource type="Script" uid="uid://cf0tkq4ih0bi" path="res://respawn.gd" id="12_respawn"]
-[ext_resource type="Script" uid="uid://cp73c5qs1r031" path="res://pista.gd" id="13_pista"]
-[ext_resource type="Script" uid="uid://dxndoouwrf0po" path="res://hud_carrera.gd" id="14_hud"]
+[ext_resource type="Script" uid="uid://nuw0iwgqmwmf" path="res://respawn.gd" id="12_respawn"]
+[ext_resource type="Script" uid="uid://bey5mkvbslghc" path="res://pista.gd" id="13_pista"]
+[ext_resource type="Script" uid="uid://x4yvcq6gg45c" path="res://hud_carrera.gd" id="14_hud"]
 [ext_resource type="Script" uid="uid://bij8s5rffr3ib" path="res://sistema_eventos.gd" id="15_eventos"]
-[ext_resource type="Script" uid="uid://cff24pn56qsma" path="res://escenario_fondo.gd" id="16_escenario"]
-[ext_resource type="Script" path="res://split_screen_carrera.gd" id="17_split"]
+[ext_resource type="Script" uid="uid://csu30a7gbrnjg" path="res://escenario_fondo.gd" id="16_escenario"]
+[ext_resource type="Script" uid="uid://dcpduho7rmmac" path="res://split_screen_carrera.gd" id="17_split"]
 
 [sub_resource type="BoxShape3D" id="KillZoneShape"]
 size = Vector3(1500, 4, 1500)
@@ -25,8 +25,6 @@ sky_curve = 0.12
 ground_bottom_color = Color(0.03, 0.02, 0.06, 1)
 ground_horizon_color = Color(0.28, 0.12, 0.35, 1)
 ground_curve = 0.08
-sun_angle_max = 30.0
-sun_curve = 0.15
 
 [sub_resource type="Sky" id="Cielo"]
 sky_material = SubResource("CieloMat")
@@ -45,10 +43,8 @@ glow_levels/2 = 0.6
 glow_levels/3 = 1.0
 glow_levels/5 = 0.5
 glow_intensity = 0.8
-glow_strength = 1.0
 glow_bloom = 0.25
 glow_blend_mode = 0
-glow_hdr_threshold = 1.0
 fog_enabled = true
 fog_light_color = Color(0.16, 0.11, 0.25, 1)
 fog_density = 0.0018
@@ -134,12 +130,12 @@ light_energy = 2.5
 spot_angle = 30.0
 script = ExtResource("6_e2xqd")
 
-[node name="Rival1_Fenyr" parent="." unique_id=637875967 groups=["rival"] instance=ExtResource("10_rival_scene")]
+[node name="Rival1_Fenyr" parent="." unique_id=637875967 instance=ExtResource("10_rival_scene")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, 11)
 velocidad_maxima = 22.0
 aceleracion = 7.0
 
-[node name="Rival2_Italia" parent="." unique_id=806139400 groups=["rival"] instance=ExtResource("11_rival2_scene")]
+[node name="Rival2_Italia" parent="." unique_id=806139400 instance=ExtResource("11_rival2_scene")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0, 11)
 velocidad_maxima = 21.0
 aceleracion = 6.5

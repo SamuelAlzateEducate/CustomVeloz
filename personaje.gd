@@ -4,6 +4,7 @@ extends CharacterBody3D
 enum Estado { QUIETO, ANDANDO, NITRO }
 # El número de cada estado es su rapidez máxima en km/h, en el orden del enum
 const VELOCIDAD_KMH = [0.0, 90.0, 120.0]
+const COHETE_SCN := preload("res://proyectil_cohete.tscn")
 
 # ---- Nivel 1 y 2: rapidez y arranque (números del juego, ver tabla del Taller 7) ----
 @export var camara: Camera3D
@@ -91,14 +92,10 @@ var sonido_derrape: AudioStreamPlayer = null
 
 func _ready():
 	floor_snap_length = pegado_al_suelo
-	collision_mask = 3 # capa 1 (pista y muros) + capa 2 (conos)
+	collision_mask = 3 | 8 # capa 1 (pista y carros) + capa 2 (conos) + capa 8 (rivales)
 	floor_constant_speed = true # misma rapidez en subida y bajada
 	if camara == null:
 		camara = get_viewport().get_camera_3d()
-	
-	# En modo 2J el Jugador2 colisiona con rivales también (capa 8)
-	if jugador_id == 2:
-		collision_mask = 3 | 8
 	
 	_buscar_ruedas()
 	_inicializar_sonido_derrape()
@@ -140,17 +137,17 @@ func _buscar_ruedas() -> void:
 	rueda_tras_izq = modelo_nodo.get_node_or_null("rally/wheels_018")
 	rueda_tras_der = modelo_nodo.get_node_or_null("rally/wheels_041")
 	
-	# Búsqueda de respaldo recursiva si cambian los nombres o jerarquía
+	# Búsqueda de respaldo recursiva si cambian los nombres o jerarquía (Rally y Fenyr)
 	if not rueda_del_izq or not rueda_del_der:
 		for c in modelo_nodo.find_children("*wheel*", "Node3D", true, false):
 			var n = c.name.to_lower()
-			if "19" in n:
+			if "19" in n or "21" in n:
 				rueda_del_izq = c
-			elif "40" in n:
+			elif "40" in n or "39" in n:
 				rueda_del_der = c
-			elif "18" in n:
+			elif "18" in n or "20" in n:
 				rueda_tras_izq = c
-			elif "41" in n:
+			elif "41" in n or "38" in n:
 				rueda_tras_der = c
 
 func _physics_process(delta):
@@ -178,12 +175,22 @@ func _physics_process(delta):
 	var tecla_nitro: bool
 	
 	if jugador_id == 2:
-		# Jugador 2: Flechas + Numpad
+		# Jugador 2: Flechas + Numpad o Teclas cercanas (M / N / B)
 		input_x = float(Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_LEFT))
 		acelerar = Input.is_key_pressed(KEY_UP)
 		frenar = Input.is_key_pressed(KEY_DOWN)
-		tecla_derrape = Input.is_key_pressed(KEY_KP_0) or Input.is_key_pressed(KEY_0)
-		tecla_nitro = Input.is_key_pressed(KEY_KP_1) or Input.is_key_pressed(KEY_1)
+		tecla_derrape = (
+			Input.is_key_pressed(KEY_KP_0) 
+			or Input.is_key_pressed(KEY_0) 
+			or Input.is_key_pressed(KEY_M)
+		)
+		tecla_nitro = (
+			Input.is_key_pressed(KEY_KP_1) 
+			or Input.is_key_pressed(KEY_1) 
+			or Input.is_key_pressed(KEY_N)
+			or Input.is_key_pressed(KEY_ENTER)
+			or Input.is_key_pressed(KEY_KP_ENTER)
+		)
 	else:
 		# Jugador 1: WASD + Shift + Espacio + E
 		if ConfigJuego.dos_jugadores:
@@ -403,6 +410,18 @@ func _physics_process(delta):
 	
 	# Ejecutar movimiento físico
 	move_and_slide()
+	
+	# Empuje físico dinámico a obstáculos (conos RigidBody3D)
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		var collider := col.get_collider()
+		if collider is RigidBody3D:
+			if collider.has_method("al_chocar"):
+				collider.al_chocar(self)
+			else:
+				var dir_empuje := -col.get_normal()
+				var fuerza := maxf(velocity.length(), 10.0) * 3.5
+				collider.apply_central_impulse(dir_empuje * fuerza + Vector3(0, 3.5, 0))
 	if sobre_pista and dist_piso < 2.5:
 		apply_floor_snap()
 		if is_on_floor() and velocity.y > 0.0 and normal_piso.y > 0.3:
@@ -629,7 +648,13 @@ func recoger_cohete() -> void:
 func _actualizar_cohete(_delta: float) -> void:
 	var disparo_ok := false
 	if jugador_id == 2:
-		disparo_ok = Input.is_key_pressed(KEY_KP_2) or Input.is_key_pressed(KEY_2)
+		disparo_ok = (
+			Input.is_key_pressed(KEY_KP_2) 
+			or Input.is_key_pressed(KEY_2) 
+			or Input.is_key_pressed(KEY_B) 
+			or Input.is_key_pressed(KEY_COMMA) 
+			or Input.is_key_pressed(KEY_PERIOD)
+		)
 		# Detectar just_pressed manualmente para evitar disparo continuo
 		if disparo_ok and not _cohete_tecla_previa:
 			_cohete_tecla_previa = true
@@ -646,11 +671,7 @@ func _disparar_cohete() -> void:
 	cohetes_cargados -= 1
 
 	# Crear proyectil en la posición frontal del carro
-	var cohete_scn = load("res://proyectil_cohete.tscn")
-	if cohete_scn == null:
-		push_error("[cohete] No se pudo cargar proyectil_cohete.tscn")
-		return
-	var p = cohete_scn.instantiate()
+	var p = COHETE_SCN.instantiate()
 	p.inicializar(self)
 	get_tree().root.add_child(p)
 

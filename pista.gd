@@ -423,8 +423,11 @@ func _on_cp(body: Node3D, k: int) -> void:
 				if body.get("jugador_id") == null or body.get("jugador_id") == 1:
 					partida.registrar_checkpoint_split(k)
 		var respawn = get_tree().get_first_node_in_group("respawn")
-		if respawn and respawn.has_method("registrar_checkpoint"):
-			respawn.registrar_checkpoint(body.global_position, body.global_rotation.y)
+		if respawn:
+			if respawn.has_method("registrar_checkpoint_jugador"):
+				respawn.registrar_checkpoint_jugador(body, body.global_position, body.global_rotation.y)
+			elif respawn.has_method("registrar_checkpoint"):
+				respawn.registrar_checkpoint(body.global_position, body.global_rotation.y)
 
 func _on_meta(body: Node3D) -> void:
 	if not body.is_in_group("jugador"):
@@ -590,30 +593,108 @@ func _on_esfera_cohete(body: Node3D, a: Area3D) -> void:
 	print("[pista] esfera roja: cohete recogido")
 
 func _conos() -> void:
-	# Tramo de conos sencillos despues de la meta (Beat 4 del Taller 5)
-	var mat := _material_brillo(C_DANO, 0.4)
-	var pares := [[120.0, -3.0], [138.0, 3.0], [156.0, -3.0], [174.0, 3.0]]
+	# Conos de tráfico dinámicos con física realista distribuidos por todo el circuito
+	var mat_naranja := StandardMaterial3D.new()
+	mat_naranja.albedo_color = Color(1.0, 0.28, 0.0) # Naranja seguridad
+	mat_naranja.roughness = 0.35
+	mat_naranja.emission_enabled = true
+	mat_naranja.emission = Color(1.0, 0.2, 0.0)
+	mat_naranja.emission_energy_multiplier = 0.3
+
+	var mat_blanco := StandardMaterial3D.new()
+	mat_blanco.albedo_color = Color(0.96, 0.96, 0.98) # Franja reflectante blanca
+	mat_blanco.roughness = 0.2
+	mat_blanco.emission_enabled = true
+	mat_blanco.emission = Color(0.9, 0.9, 0.9)
+	mat_blanco.emission_energy_multiplier = 0.4
+
+	# Mallas compartidas para alto rendimiento
+	var mesh_base := BoxMesh.new()
+	mesh_base.size = Vector3(0.58, 0.05, 0.58)
+	mesh_base.material = mat_naranja
+
+	var mesh_cuerpo := CylinderMesh.new()
+	mesh_cuerpo.top_radius = 0.04
+	mesh_cuerpo.bottom_radius = 0.26
+	mesh_cuerpo.height = 0.72
+	mesh_cuerpo.radial_segments = 10
+	mesh_cuerpo.material = mat_naranja
+
+	var mesh_franja := CylinderMesh.new()
+	mesh_franja.top_radius = 0.12
+	mesh_franja.bottom_radius = 0.18
+	mesh_franja.height = 0.20
+	mesh_franja.radial_segments = 10
+	mesh_franja.material = mat_blanco
+
+	var col_shape := CylinderShape3D.new()
+	col_shape.height = 0.75
+	col_shape.radius = 0.28
+
+	var pares: Array = [
+		# Zona 1: Slalom inicial tras la meta (s = 115m a 185m)
+		[115.0, -3.2], [115.0, -4.2],
+		[132.0, 3.2], [132.0, 4.2],
+		[150.0, -3.0], [150.0, -4.0],
+		[168.0, 3.0], [168.0, 4.0],
+		[185.0, 0.0],
+
+		# Zona 2: Ápice y recorte de la Curva 1 (s = 345m a 375m)
+		[345.0, -4.2], [355.0, -3.8], [365.0, -3.6], [375.0, -4.0],
+
+		# Zona 3: Obstáculo en la loma este / subida empinada (s = 495m a 525m)
+		[495.0, -1.0], [495.0, 1.0],
+		[510.0, -1.4], [510.0, 0.0], [510.0, 1.4],
+		[525.0, -1.0], [525.0, 1.0],
+
+		# Zona 4: Chicane en S en sector técnico (s = 790m a 835m)
+		[790.0, 3.2], [805.0, -3.2], [820.0, 3.0], [835.0, -3.0],
+
+		# Zona 5: Chicane rápida en descenso (s = 965m a 1005m)
+		[965.0, -2.8], [975.0, -2.8],
+		[985.0, 2.8], [995.0, 2.8],
+		[1005.0, 0.0],
+
+		# Zona 6: Reducción de calzada en puente/curvas medias (s = 1245m a 1275m)
+		[1245.0, 4.2], [1255.0, 3.4], [1265.0, 2.6], [1275.0, 3.4],
+
+		# Zona 7: Conos en ápice de horquilla norte (s = 1425m a 1455m)
+		[1425.0, -3.8], [1435.0, -3.4], [1445.0, -3.4], [1455.0, -3.8],
+
+		# Zona 8: Slalom previo a la recta de meta (s = 1695m a 1725m)
+		[1695.0, -2.6], [1705.0, 2.6], [1715.0, -2.6], [1725.0, 2.6]
+	]
+
 	for par in pares:
-		var s := s_meta + float(par[0])
-		var cuerpo := StaticBody3D.new()
-		cuerpo.collision_layer = 2 # capa 2: solo el jugador choca con los conos (los rivales los esquivan)
-		var mi := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.05
-		cm.bottom_radius = 0.3
-		cm.height = 0.7
-		cm.radial_segments = 8
-		cm.material = mat
-		mi.mesh = cm
-		cuerpo.add_child(mi)
+		var s: float = s_meta + float(par[0])
+		var cono := ConoObstaculo.new()
+		cono.position = pos_en(s) + der_en(s) * float(par[1]) + Vector3(0.0, 0.38, 0.0)
+		cono.rotation.y = _yaw(adelante_en(s))
+
+		# 1. Base cuadrada
+		var mi_base := MeshInstance3D.new()
+		mi_base.mesh = mesh_base
+		mi_base.position = Vector3(0.0, -0.355, 0.0)
+		cono.add_child(mi_base)
+
+		# 2. Cono naranja
+		var mi_cono := MeshInstance3D.new()
+		mi_cono.mesh = mesh_cuerpo
+		mi_cono.position = Vector3.ZERO
+		cono.add_child(mi_cono)
+
+		# 3. Franja blanca reflectante
+		var mi_franja := MeshInstance3D.new()
+		mi_franja.mesh = mesh_franja
+		mi_franja.position = Vector3(0.0, 0.02, 0.0)
+		cono.add_child(mi_franja)
+
+		# Colisión física del cono
 		var cs := CollisionShape3D.new()
-		var sh := CylinderShape3D.new()
-		sh.height = 0.7
-		sh.radius = 0.3
-		cs.shape = sh
-		cuerpo.add_child(cs)
-		add_child(cuerpo)
-		cuerpo.position = pos_en(s) + der_en(s) * float(par[1]) + Vector3(0, 0.35, 0)
+		cs.shape = col_shape
+		cono.add_child(cs)
+
+		add_child(cono)
 
 func _luces_neon() -> void:
 	var n := 8

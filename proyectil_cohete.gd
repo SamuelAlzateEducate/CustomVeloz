@@ -8,17 +8,16 @@ extends Area3D
 ##   - Al impactar rival: llama recibir_impacto(), detona explosión visual, suena boom
 ##   - Se autodestruye tras 4 s si no golpea nada
 
-const VELOCIDAD := 75.0          # m/s de vuelo
-const GUIADO_FUERZA := 5.2       # rad/s de guiado fluido hacia el rival
+const VELOCIDAD := 48.0          # m/s de vuelo (arcade equilibrado)
+const GUIADO_FUERZA := 9.5       # rad/s de guiado fluido hacia el rival
 const VIDA_MAX := 4.0            # segundos hasta autodestrucción
-const RADIO_GUIADO := 90.0       # metros de alcance frontal para fijar objetivo
+const RADIO_GUIADO := 95.0       # metros de alcance frontal para fijar objetivo
 
 var _vida := 0.0
 var _disparador: Node3D = null   # referencia al Personaje que disparó
 var _modelo: Node3D = null
 var _snd_vuelo: AudioStreamPlayer3D = null
 var _impactado := false
-var _busqueda_inicial_hecha := false
 var _objetivo: Node3D = null
 
 func _ready() -> void:
@@ -40,16 +39,16 @@ func _ready() -> void:
 				nodo_cohete.position = Vector3.ZERO
 				nodo_cohete.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 
-	# Colisión: cápsula orientada al eje Z del proyectil
+	# Colisión: cápsula orientada al eje Z del proyectil con tamaño generoso para evitar atravesar
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.12
-	cap.height = 0.9
+	cap.radius = 0.65
+	cap.height = 1.4
 	cs.shape = cap
 	cs.rotation_degrees = Vector3(90, 0, 0)
 	add_child(cs)
 
-	# Capa 4: proyectiles. Detecta cuerpos en capas 1 (pista) y 8 (rivales)
+	# Capa 4: proyectiles. Detecta cuerpos en capas 1 (pista y carros) y 8 (rivales)
 	collision_layer = 4
 	collision_mask = 1 | 8
 
@@ -83,23 +82,30 @@ func _physics_process(delta: float) -> void:
 		_detonar(true)
 		return
 
-	# Buscar objetivo en los primeros fotogramas: SOLO si hay rival adelante
-	if not _busqueda_inicial_hecha:
-		_busqueda_inicial_hecha = true
+	# Buscar objetivo continuamente si aún no tenemos o se perdió
+	if not is_instance_valid(_objetivo):
 		_objetivo = _buscar_rival_frontal()
 
-	# Guiado teledirigido SOLO si hay un enemigo fijado al frente
+	# Guiado teledirigido suave y preciso
 	if is_instance_valid(_objetivo):
-		var target_pos: Vector3 = _objetivo.global_position + Vector3(0.0, 0.6, 0.0)
+		var target_pos: Vector3 = _objetivo.global_position + Vector3(0.0, 0.7, 0.0)
 		var diff: Vector3 = target_pos - global_position
+		var dist: float = diff.length()
+
+		# Detonación inmediata por proximidad al objetivo (garantiza impacto)
+		if dist <= 2.4:
+			if _objetivo.has_method("recibir_impacto"):
+				_objetivo.recibir_impacto()
+			_detonar(true)
+			return
+
 		var dir: Vector3 = diff.normalized()
 		var fwd: Vector3 = -global_transform.basis.z
 
-		# Si el rival ya quedó atrás del misil, romper el fijado
-		if fwd.dot(dir) < 0.15:
+		# Si el rival quedó claramente atrás, desvincular objetivo
+		if fwd.dot(dir) < -0.15:
 			_objetivo = null
 		else:
-			# Rotación suave tridimensional hacia el objetivo
 			var nuevo_fwd: Vector3 = fwd.slerp(dir, GUIADO_FUERZA * delta).normalized()
 			var up: Vector3 = Vector3.UP
 			var side: Vector3 = nuevo_fwd.cross(up)
@@ -108,8 +114,40 @@ func _physics_process(delta: float) -> void:
 				up = side.cross(nuevo_fwd).normalized()
 				global_transform.basis = Basis(side, up, -nuevo_fwd)
 
-	# Mover hacia adelante (-Z en Godot)
-	global_position += -global_transform.basis.z * VELOCIDAD * delta
+	# Raycast de barrido continuo (evita que a alta velocidad atraviese el carro)
+	var fwd_mov := -global_transform.basis.z
+	var pos_nueva := global_position + fwd_mov * VELOCIDAD * delta
+	var space_state := get_world_3d().direct_space_state
+	if space_state:
+		var exclusions: Array[RID] = []
+		if is_instance_valid(self):
+			exclusions.append(get_rid())
+		if is_instance_valid(_disparador) and _disparador is CollisionObject3D:
+			exclusions.append(_disparador.get_rid())
+		var ray := PhysicsRayQueryParameters3D.create(global_position, pos_nueva, 1 | 8, exclusions)
+		var hit := space_state.intersect_ray(ray)
+		if hit and hit.collider:
+			var col = hit.collider
+			if col != _disparador:
+				if col.has_method("recibir_impacto"):
+					col.recibir_impacto()
+				global_position = hit.position
+				_detonar(true)
+				return
+
+	# Detección de proximidad con todos los vehículos rivales y jugadores
+	for auto in get_tree().get_nodes_in_group("rival") + get_tree().get_nodes_in_group("jugador"):
+		if auto == _disparador or not is_instance_valid(auto) or not (auto is Node3D):
+			continue
+		var dist_auto: float = global_position.distance_to(auto.global_position + Vector3(0.0, 0.7, 0.0))
+		if dist_auto <= 2.3:
+			if auto.has_method("recibir_impacto"):
+				auto.recibir_impacto()
+			_detonar(true)
+			return
+
+	# Avanzar a la nueva posición
+	global_position = pos_nueva
 
 func _buscar_rival_frontal() -> Node3D:
 	var fwd: Vector3 = -global_transform.basis.z
@@ -122,22 +160,20 @@ func _buscar_rival_frontal() -> Node3D:
 	candidatos.append_array(get_tree().get_nodes_in_group("jugador"))
 
 	for rival in candidatos:
-		if not rival is Node3D or rival == _disparador:
+		if not is_instance_valid(rival) or not (rival is Node3D) or rival == _disparador:
 			continue
 		var diff: Vector3 = rival.global_position - global_position
 		var dist := diff.length()
 		if dist > mejor_dist:
 			continue
-		# Solo se considera "al frente" si está dentro del cono frontal (~60 grados: dot >= 0.45)
+		# Cono amplio (~70 grados: dot >= 0.30) para captar al rival en carriles contiguos
 		var dir := diff.normalized()
-		if fwd.dot(dir) >= 0.45:
+		if fwd.dot(dir) >= 0.30:
 			mejor_dist = dist
 			mejor_rival = rival as Node3D
 
 	if mejor_rival:
 		print("[cohete] ¡ENEMIGO AL FRENTE! Misil teledirigido fijado a: ", mejor_rival.name, " a ", snappedf(mejor_dist, 0.1), " m")
-	else:
-		print("[cohete] Sin enemigos al frente: Disparo recto directo")
 
 	return mejor_rival
 
@@ -148,7 +184,7 @@ func _on_cuerpo_entrado(body: Node) -> void:
 	if body == _disparador:
 		return
 	_impactado = true
-	# Si golpea a un rival, aplicar impacto
+	# Si golpea a un rival o jugador, aplicar impacto
 	if body.has_method("recibir_impacto"):
 		body.recibir_impacto()
 	_detonar(true)
