@@ -19,6 +19,7 @@ var l_vel: Label
 var l_cuenta: Label
 var l_nitro: Label
 var l_aleron: Label
+var l_rebufo: Label
 var pb_nitro: ProgressBar
 
 func _etiqueta(tam: int, color: Color) -> Label:
@@ -97,6 +98,17 @@ func _ready() -> void:
 	l_aleron.offset_bottom = -124
 	l_aleron.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	l_aleron.text = ""
+	
+	l_rebufo = _etiqueta(16, Color("#00E5FF"))
+	l_rebufo.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	l_rebufo.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	l_rebufo.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	l_rebufo.offset_left = -300
+	l_rebufo.offset_top = -174
+	l_rebufo.offset_right = -24
+	l_rebufo.offset_bottom = -150
+	l_rebufo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l_rebufo.text = ""
 	
 	pb_nitro = ProgressBar.new()
 	pb_nitro.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -244,6 +256,15 @@ func _process(_delta: float) -> void:
 				l_aleron.text = ""
 		else:
 			l_aleron.text = ""
+		if l_rebufo:
+			if jugador.get("impulso_rebase") != null and jugador.impulso_rebase > 0.0:
+				l_rebufo.text = "¡¡REBASE ACTIVADO!!"
+				l_rebufo.add_theme_color_override("font_color", Color("#FFD700"))
+			elif jugador.get("en_rebufo") == true:
+				l_rebufo.text = ">> REBUFO (SUCCIÓN) <<"
+				l_rebufo.add_theme_color_override("font_color", Color("#00E5FF"))
+			else:
+				l_rebufo.text = ""
 		if "cohetes_cargados" in jugador and jugador.cohetes_cargados > 0:
 			if ConfigJuego.dos_jugadores:
 				l_ayuda.text = "[W/A/S/D] Conducir   [ESPACIO] Derrape   [SHIFT] Turbo   [E] MISIL x%d" % jugador.cohetes_cargados

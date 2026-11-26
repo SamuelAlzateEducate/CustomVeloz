@@ -23,6 +23,7 @@ var _l2_pb: Label = null
 var _l2_cuenta: Label = null
 var _l2_nitro: Label = null
 var _l2_aleron: Label = null
+var _l2_rebufo: Label = null
 var _l2_cohete: Label = null
 var _pb2_nitro: ProgressBar = null
 
@@ -227,6 +228,18 @@ func _crear_hud_p2(root: Node) -> void:
 	_l2_aleron.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_l2_aleron.text = ""
 
+	# Rebufo P2 (sobre aleron)
+	_l2_rebufo = _etiqueta(_hud_p2_cl, 16, Color("#00E5FF"))
+	_l2_rebufo.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_l2_rebufo.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_l2_rebufo.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_l2_rebufo.offset_left = -260
+	_l2_rebufo.offset_top = -174
+	_l2_rebufo.offset_right = -24
+	_l2_rebufo.offset_bottom = -150
+	_l2_rebufo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_l2_rebufo.text = ""
+
 	# Velocímetro P2 (abajo derecha)
 	_l2_vel = _etiqueta(_hud_p2_cl, 38, Color(1, 0.92, 0, 1))
 	_l2_vel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -352,6 +365,17 @@ func _actualizar_hud_p2() -> void:
 				_l2_aleron.text = ""
 		else:
 			_l2_aleron.text = ""
+
+	# Rebufo P2
+	if _l2_rebufo:
+		if _jugador2.get("impulso_rebase") != null and _jugador2.impulso_rebase > 0.0:
+			_l2_rebufo.text = "¡¡REBASE ACTIVADO!!"
+			_l2_rebufo.add_theme_color_override("font_color", Color("#FFD700"))
+		elif _jugador2.get("en_rebufo") == true:
+			_l2_rebufo.text = ">> REBUFO (SUCCIÓN) <<"
+			_l2_rebufo.add_theme_color_override("font_color", Color("#00E5FF"))
+		else:
+			_l2_rebufo.text = ""
 
 	# Velocidad P2
 	var kmh: float = Vector2(_jugador2.velocity.x, _jugador2.velocity.z).length() * 3.6

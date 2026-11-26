@@ -471,11 +471,19 @@ func _esferas_verdes() -> void:
 		_esferas.append(a)
 		a.body_entered.connect(_on_esfera.bind(a))
 
+func _reaparecer_esfera(a: Area3D, demora: float = 1.0) -> void:
+	get_tree().create_timer(demora).timeout.connect(func():
+		if is_instance_valid(a):
+			a.visible = true
+			a.set_deferred("monitoring", true)
+	)
+
 func _on_esfera(body: Node3D, a: Area3D) -> void:
 	if not body.is_in_group("jugador") or not a.visible:
 		return
 	a.visible = false
 	a.set_deferred("monitoring", false)
+	_reaparecer_esfera(a, 1.0)
 	if body.has_method("aplicar_mejora"):
 		body.aplicar_mejora(mejora_kmh)
 	var eventos = get_tree().get_first_node_in_group("eventos")
@@ -519,6 +527,7 @@ func _on_esfera_nitro(body: Node3D, a: Area3D) -> void:
 		return
 	a.visible = false
 	a.set_deferred("monitoring", false)
+	_reaparecer_esfera(a, 1.0)
 	var n = body.get_node_or_null("Nitro")
 	if n and n.has_method("recargar_nitro"):
 		n.recargar_nitro(1.0)
@@ -585,6 +594,7 @@ func _on_esfera_cohete(body: Node3D, a: Area3D) -> void:
 		return
 	a.visible = false
 	a.set_deferred("monitoring", false)
+	_reaparecer_esfera(a, 1.0)
 	if body.has_method("recoger_cohete"):
 		body.recoger_cohete()
 	var eventos = get_tree().get_first_node_in_group("eventos")

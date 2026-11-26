@@ -90,6 +90,13 @@ var intensidad_derrape: float = 0.0
 var comp_lateral_actual: float = 0.0
 var sonido_derrape: AudioStreamPlayer = null
 
+# ---- Sistema de Rebufo (Slipstream / Drafting) ----
+var en_rebufo: bool = false
+var tiempo_rebufo: float = 0.0
+var impulso_rebase: float = 0.0
+var multiplicador_rebufo: float = 1.0
+var _snd_rebufo: AudioStreamPlayer = null
+
 func _ready():
 	floor_snap_length = pegado_al_suelo
 	# Capa 1 (pista, muros y carros) + Capa 8 (rivales).
@@ -102,6 +109,7 @@ func _ready():
 	
 	_buscar_ruedas()
 	_inicializar_sonido_derrape()
+	_inicializar_sonido_rebufo()
 	
 	if prueba != "Ninguna":
 		_aplicar_prueba(1)
@@ -130,6 +138,15 @@ func detener_sonido_derrape() -> void:
 		if sonido_derrape.playing:
 			sonido_derrape.stop()
 
+func _inicializar_sonido_rebufo() -> void:
+	_snd_rebufo = AudioStreamPlayer.new()
+	_snd_rebufo.name = "SonidoRebufo"
+	if ResourceLoader.exists("res://Sonidos_Carros/CarroRally_Personaje/rebufo_viento.wav"):
+		_snd_rebufo.stream = load("res://Sonidos_Carros/CarroRally_Personaje/rebufo_viento.wav")
+	_snd_rebufo.volume_db = -6.0
+	_snd_rebufo.bus = "Master"
+	add_child(_snd_rebufo)
+
 func _buscar_ruedas() -> void:
 	if not modelo_nodo:
 		return
@@ -156,6 +173,7 @@ func _buscar_ruedas() -> void:
 func _physics_process(delta):
 	_actualizar_mejoras(delta)
 	_actualizar_cohete(delta)
+	_actualizar_rebufo(delta)
 	# Trompo de impacto: si está siendo impactado bloquear controles
 	if _impacto_t > 0.0:
 		_impacto_t = maxf(0.0, _impacto_t - delta)
@@ -213,7 +231,7 @@ func _physics_process(delta):
 	
 	quiere_nitro = tecla_nitro
 	corre = tecla_nitro and nitro_ok
-	var speed_max: float = (speed_correr if corre else speed_caminar) * multiplicador
+	var speed_max: float = (speed_correr if corre else speed_caminar) * multiplicador * multiplicador_rebufo
 	
 	# Control de estado de derrape activo (Mecánica de rally arcade / Freno de mano)
 	var puede_derrapar := absf(rapidez_actual) >= velocidad_min_derrape and is_on_floor()
@@ -257,7 +275,7 @@ func _physics_process(delta):
 	angulo_ruedas_actual = lerpf(angulo_ruedas_actual, angulo_obj, clampf(suavizado_volante_retorno * delta, 0.0, 1.0))
 	
 	# 3. ACELERACIÓN, FRENADO Y MARCHA ATRÁS (Con freno de mano funcional en recta y curva)
-	var tasa_acel = speed_max / maxf(tiempo_arranque, 0.05)
+	var tasa_acel = (speed_max / maxf(tiempo_arranque, 0.05)) * (1.35 if (en_rebufo or impulso_rebase > 0.0) else 1.0)
 	if tecla_derrape and is_on_floor() and absf(rapidez_actual) > 0.5:
 		# Freno de mano: bloqueo de neumáticos traseros -> frenada brusca con derrape / chillido
 		var tasa_freno_mano = (speed_max / 1.1)
@@ -808,6 +826,66 @@ func _sonido_equipado() -> void:
 	add_child(_snd_equipado)
 	_snd_equipado.play()
 	_snd_equipado.finished.connect(_snd_equipado.queue_free)
+
+# ==============================================================================
+# SISTEMA DE REBUFO (SLIPSTREAM / DRAFTING)
+# ==============================================================================
+## Permite al auto que va detrás ganar velocidad en el túnel aerodinámico de otro carro.
+## Tras mantenerse 0.75s detrás, otorga un impulso de rebase (slingshot) con sonido de viento.
+func _actualizar_rebufo(delta: float) -> void:
+	if impulso_rebase > 0.0:
+		impulso_rebase = maxf(impulso_rebase - delta, 0.0)
+
+	var fwd := -global_transform.basis.z.normalized()
+	var der := global_transform.basis.x.normalized()
+	var pos_mi := global_position
+
+	var carro_lider: Node3D = null
+	var min_dist := 999.0
+
+	var candidatos: Array = get_tree().get_nodes_in_group("jugador") + get_tree().get_nodes_in_group("rival")
+	for otro in candidatos:
+		if otro == self or not is_instance_valid(otro) or not otro.is_inside_tree():
+			continue
+		var diff: Vector3 = otro.global_position - pos_mi
+		var dist_adelante: float = diff.dot(fwd)
+		# Cono de rebufo: de 2.0m a 24.0m por delante
+		if dist_adelante > 2.0 and dist_adelante < 24.0:
+			var dist_lateral: float = absf(diff.dot(der))
+			# Alineación transversal dentro del flujo de aire (máximo 2.8m de desvío)
+			if dist_lateral < 2.8:
+				var fwd_otro: Vector3 = -otro.global_transform.basis.z.normalized()
+				# Mismo sentido de marcha
+				if fwd.dot(fwd_otro) > 0.60:
+					if dist_adelante < min_dist:
+						min_dist = dist_adelante
+						carro_lider = otro
+
+	# Activo solo si hay un carro adelante y nos desplazamos a buena velocidad (> 35 km/h ≈ 9.5 m/s)
+	if carro_lider != null and absf(rapidez_actual) > 9.5:
+		en_rebufo = true
+		tiempo_rebufo += delta
+		# Si se mantiene 0.75s dentro de la estela aerodinámica, activa el slingshot de rebase
+		if tiempo_rebufo >= 0.75 and impulso_rebase <= 0.0:
+			impulso_rebase = 1.8 # 1.8 segundos de sobreimpulso para adelantar
+			tiempo_rebufo = 0.0
+			if _snd_rebufo and _snd_rebufo.stream and not _snd_rebufo.playing:
+				_snd_rebufo.pitch_scale = randf_range(1.05, 1.20)
+				_snd_rebufo.volume_db = -6.0
+				_snd_rebufo.play()
+	else:
+		en_rebufo = false
+		tiempo_rebufo = maxf(tiempo_rebufo - delta * 1.5, 0.0)
+
+	# Multiplicador aerodinámico:
+	# - En succión constante: +15% de velocidad máxima
+	# - En impulso de rebase (slingshot): +22% de velocidad máxima
+	if impulso_rebase > 0.0:
+		multiplicador_rebufo = 1.22
+	elif en_rebufo:
+		multiplicador_rebufo = 1.15
+	else:
+		multiplicador_rebufo = 1.0
 
 # ---------------- Prueba automática ----------------
 var _cuadro = 0
