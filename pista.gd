@@ -358,6 +358,7 @@ func _construir_juego() -> void:
 	_esferas_amarillas()
 	_esferas_cohete()
 	_conos()
+	_chicanas()
 	_luces_neon()
 	_preparar_carrera()
 
@@ -705,6 +706,119 @@ func _conos() -> void:
 		cono.add_child(cs)
 
 		add_child(cono)
+
+func _chicanas() -> void:
+	# Obstáculos pesados de obras viales (Barreras de Chicana / Zig-Zag).
+	# Se colocan en 3 zonas estratégicas del circuito donde la pista es ancha
+	# forzando a los jugadores a frenar y zigzaguear (eslalon) entre ellas.
+	
+	# Textura procedural de franjas diagonales de obra (Naranja seguridad y blanco reflectante)
+	var img := Image.create(128, 32, false, Image.FORMAT_RGBA8)
+	for x in 128:
+		for y in 32:
+			var stripe := ((x + y) / 12) % 2 == 0
+			var col := Color(0.98, 0.35, 0.05) if stripe else Color(0.96, 0.96, 0.96)
+			if y < 3 or y >= 29:
+				col = Color(0.12, 0.12, 0.14)
+			img.set_pixel(x, y, col)
+	var tex_rayas := ImageTexture.create_from_image(img)
+	
+	var mat_rayas := StandardMaterial3D.new()
+	mat_rayas.albedo_texture = tex_rayas
+	mat_rayas.roughness = 0.5
+	mat_rayas.uv1_scale = Vector3(2.5, 1.0, 1.0)
+	
+	var mat_concreto := StandardMaterial3D.new()
+	mat_concreto.albedo_color = Color(0.22, 0.24, 0.26)
+	mat_concreto.roughness = 0.85
+	
+	var mat_baliza := StandardMaterial3D.new()
+	mat_baliza.albedo_color = Color(1.0, 0.55, 0.0)
+	mat_baliza.emission_enabled = true
+	mat_baliza.emission = Color(1.0, 0.55, 0.0)
+	mat_baliza.emission_energy_multiplier = 3.0
+
+	var mesh_base := BoxMesh.new()
+	mesh_base.size = Vector3(5.5, 0.35, 0.75)
+	mesh_base.material = mat_concreto
+
+	var mesh_cuerpo := BoxMesh.new()
+	mesh_cuerpo.size = Vector3(5.4, 0.75, 0.45)
+	mesh_cuerpo.material = mat_rayas
+
+	var mesh_baliza := CylinderMesh.new()
+	mesh_baliza.top_radius = 0.12
+	mesh_baliza.bottom_radius = 0.14
+	mesh_baliza.height = 0.25
+	mesh_baliza.material = mat_baliza
+
+	var col_shape := BoxShape3D.new()
+	col_shape.size = Vector3(5.5, 1.2, 0.8)
+
+	# Definición de Chicanas (s_relativo, desplazamiento_lateral, evadir_a_derecha)
+	# Ancho de pista = 14m (va de -7.0m a +7.0m).
+	# Una barrera de 5.5m colocada en -3.8m cubre de -6.5m a -1.1m (obliga a pasar por la derecha).
+	# Una barrera de 5.5m colocada en +3.8m cubre de +1.1m a +6.5m (obliga a pasar por la izquierda).
+	var chicanas_data = [
+		# --- CHICANA 1: Sector Descenso de Colina (s = 500m a 550m) ---
+		[500.0, -3.8, true],   # Barrera 1 izquierda -> evadir a derecha
+		[522.0,  3.8, false],  # Barrera 2 derecha   -> evadir a izquierda
+		[544.0, -3.8, true],   # Barrera 3 izquierda -> evadir a derecha
+
+		# --- CHICANA 2: Sector Este - Recta de Alta Velocidad (s = 1140m a 1190m) ---
+		[1140.0,  3.8, false], # Barrera 1 derecha   -> evadir a izquierda
+		[1162.0, -3.8, true],  # Barrera 2 izquierda -> evadir a derecha
+		[1184.0,  3.8, false], # Barrera 3 derecha   -> evadir a izquierda
+
+		# --- CHICANA 3: Tramo Técnico Sur previo a la Meta (s = 1530m a 1575m) ---
+		[1530.0, -3.8, true],  # Barrera 1 izquierda -> evadir a derecha
+		[1555.0,  3.8, false], # Barrera 2 derecha   -> evadir a izquierda
+		[1575.0, -3.8, true]   # Barrera 3 izquierda -> evadir a derecha
+	]
+
+	for item in chicanas_data:
+		var s: float = s_meta + float(item[0])
+		var lado_x: float = float(item[1])
+		
+		var barrera := BarreraChicana.new()
+		barrera.position = pos_en(s) + der_en(s) * lado_x + Vector3(0.0, 0.20, 0.0)
+		barrera.rotation.y = _yaw(adelante_en(s))
+		
+		# 1. Base pesada de concreto
+		var m_base := MeshInstance3D.new()
+		m_base.mesh = mesh_base
+		m_base.position = Vector3(0.0, 0.175, 0.0)
+		barrera.add_child(m_base)
+
+		# 2. Cuerpo de seguridad con franjas diagonales de obra
+		var m_cuerpo := MeshInstance3D.new()
+		m_cuerpo.mesh = mesh_cuerpo
+		m_cuerpo.position = Vector3(0.0, 0.70, 0.0)
+		barrera.add_child(m_cuerpo)
+
+		# 3. Balizas luminosas de advertencia en los extremos superiores
+		for bx in [-2.3, 2.3]:
+			var m_baliza := MeshInstance3D.new()
+			m_baliza.mesh = mesh_baliza
+			m_baliza.position = Vector3(bx, 1.15, 0.0)
+			barrera.add_child(m_baliza)
+
+		# 4. Luz de advertencia parpadeante en el centro
+		var luz := OmniLight3D.new()
+		luz.light_color = Color(1.0, 0.55, 0.0)
+		luz.light_energy = 3.5
+		luz.omni_range = 8.0
+		luz.position = Vector3(0.0, 1.4, 0.0)
+		barrera.add_child(luz)
+		barrera.luz_advertencia = luz
+
+		# 5. Colisión física del RigidBody3D
+		var cs := CollisionShape3D.new()
+		cs.shape = col_shape
+		cs.position = Vector3(0.0, 0.60, 0.0)
+		barrera.add_child(cs)
+
+		add_child(barrera)
 
 func _luces_neon() -> void:
 	var n := 8
