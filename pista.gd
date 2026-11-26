@@ -13,6 +13,7 @@ const C_VERDE := Color(0.0, 1.0, 0.25) # Verde Neón Esmeralda Puro (Alerón / M
 const C_AMARILLO := Color(1.0, 0.85, 0.0) # Amarillo Dorado / Fuego (Turbo)
 const C_DANO := Color("#FF5722")
 const C_LINEA := Color("#90A4AE")
+const C_ROJO_COMBATE := Color(1.0, 0.1, 0.05) # Rojo neón para esfera de cohete
 const PASOS_DENSOS := 40
 
 @export var ancho := 14.0 # m de ancho de la pista
@@ -220,7 +221,8 @@ func _construir_visual() -> void:
 				_quad(vm, nm, o_i + up, o_i, o_j, o_j + up)
 		add_child(_malla(vp, np, mat_pista))
 		add_child(_malla(vl, nl, mat_linea))
-		add_child(_malla(vm, nm, mat_muro))
+		# Muro visual solido celeste reemplazado por barandas metalicas modulares
+		# (la colision invisible de vm se mantiene abajo en caras)
 		# colision: piso y muros del tramo
 		var caras := PackedVector3Array()
 		caras.append_array(vp)
@@ -235,6 +237,79 @@ func _construir_visual() -> void:
 		add_child(cuerpo)
 		i0 = i1
 	_linea_de_meta()
+	_construir_barandas()
+
+func _construir_barandas() -> void:
+	var escena_baranda: PackedScene = load("res://Modelos_Escenario/baranda_modulo.glb")
+	if not escena_baranda:
+		return
+	var malla_baranda := _obtener_mesh_de_escena(escena_baranda)
+	if not malla_baranda:
+		return
+
+	var paso_baranda := 2.7
+	var cantidad_por_lado := int(floor(largo / paso_baranda))
+	if cantidad_por_lado <= 0:
+		return
+
+	var total_instancias := cantidad_por_lado * 2
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = malla_baranda
+	mm.instance_count = total_instancias
+
+	var mitad := ancho * 0.5
+	var idx := 0
+
+	for k in range(cantidad_por_lado):
+		var s := float(k) * paso_baranda
+		var p1 := pos_en(s)
+		var p2 := pos_en(s + 1.0)
+		var fwd := (p2 - p1).normalized()
+		var der := der_en(s)
+		var up := der.cross(fwd).normalized()
+		var side := fwd.cross(up).normalized()
+
+		# Lado izquierdo (signo -1.0)
+		var pos_izq := p1 - der * mitad
+		var t_izq := Transform3D()
+		t_izq.basis.x = fwd
+		t_izq.basis.y = up
+		t_izq.basis.z = side
+		t_izq.origin = pos_izq
+		mm.set_instance_transform(idx, t_izq)
+		idx += 1
+
+		# Lado derecho (signo 1.0)
+		var pos_der := p1 + der * mitad
+		var t_der := Transform3D()
+		t_der.basis.x = -fwd
+		t_der.basis.y = up
+		t_der.basis.z = -side
+		t_der.origin = pos_der
+		mm.set_instance_transform(idx, t_der)
+		idx += 1
+
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "BarandasMultiMesh"
+	mmi.multimesh = mm
+	add_child(mmi)
+
+static func _obtener_mesh_de_escena(escena: PackedScene) -> Mesh:
+	if not escena:
+		return null
+	var inst: Node = escena.instantiate()
+	var mesh: Mesh = null
+	var stack: Array[Node] = [inst]
+	while not stack.is_empty():
+		var actual = stack.pop_back()
+		if actual is MeshInstance3D and actual.mesh:
+			mesh = actual.mesh
+			break
+		for c in actual.get_children():
+			stack.append(c)
+	inst.queue_free()
+	return mesh
 
 func _linea_de_meta() -> void:
 	var p := pos_en(s_meta)
@@ -293,6 +368,7 @@ func _construir_juego() -> void:
 	_checkpoints_y_meta()
 	_esferas_verdes()
 	_esferas_amarillas()
+	_esferas_cohete()
 	_conos()
 	_luces_neon()
 	_preparar_carrera()
@@ -443,6 +519,70 @@ func _on_esfera_nitro(body: Node3D, a: Area3D) -> void:
 	if eventos and eventos.has_method("_on_evento"):
 		eventos._on_evento(a.global_position)
 	print("[pista] esfera amarilla: TURBO 100% recargado + impulso")
+
+# ------------------------------------------------------------------ esferas de cohete (rojo combate)
+# Se colocan 8 esferas rojas distribuidas a lo largo del circuito (cada ~220 m aprox.)
+# Una al recogerla entrega 1 cohete al jugador (máx 3 almacenados).
+func _esferas_cohete() -> void:
+	var posiciones_s := PackedFloat32Array([
+		55.0, 275.0, 495.0, 715.0, 935.0, 1155.0, 1375.0, 1595.0
+	])
+	var lados := PackedFloat32Array([
+		2.5, -2.5, 3.0, -3.0, 2.5, -2.5, 3.0, -3.0
+	])
+	for k in posiciones_s.size():
+		var s := s_meta + posiciones_s[k]
+		var pos := pos_en(s) + der_en(s) * lados[k] + Vector3(0, 1.3, 0)
+		var a := _area(self, pos, 0.0, Vector3(3.0, 3.0, 3.0))
+		a.name = "EsferaCohete%d" % (k + 1)
+		# Esfera roja central
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.48
+		sm.height = 0.96
+		sm.radial_segments = 10
+		sm.rings = 5
+		sm.material = _material_brillo(C_ROJO_COMBATE, 3.5)
+		mi.mesh = sm
+		a.add_child(mi)
+		# Anillo orbital rojo (lo diferencia visualmente de las otras esferas)
+		var anillo := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.62
+		tm.outer_radius = 0.86
+		tm.rings = 14
+		tm.ring_segments = 7
+		tm.material = _material_brillo(C_ROJO_COMBATE, 2.0)
+		anillo.mesh = tm
+		anillo.name = "AnilloCohete"
+		anillo.rotation_degrees = Vector3(45.0, 0.0, 0.0)
+		a.add_child(anillo)
+		# Icono de cohete: pequeño cilindro naranja apuntando arriba
+		var icono := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.0
+		cm.bottom_radius = 0.08
+		cm.height = 0.28
+		cm.radial_segments = 6
+		cm.material = _material_brillo(Color(1.0, 0.45, 0.0), 2.5)
+		icono.mesh = cm
+		icono.position = Vector3(0.0, 0.0, 0.0)
+		icono.rotation_degrees = Vector3(0.0, 0.0, 0.0)
+		a.add_child(icono)
+		_esferas.append(a)
+		a.body_entered.connect(_on_esfera_cohete.bind(a))
+
+func _on_esfera_cohete(body: Node3D, a: Area3D) -> void:
+	if not body.is_in_group("jugador") or not a.visible:
+		return
+	a.visible = false
+	a.set_deferred("monitoring", false)
+	if body.has_method("recoger_cohete"):
+		body.recoger_cohete()
+	var eventos = get_tree().get_first_node_in_group("eventos")
+	if eventos and eventos.has_method("_on_evento"):
+		eventos._on_evento(a.global_position)
+	print("[pista] esfera roja: cohete recogido")
 
 func _conos() -> void:
 	# Tramo de conos sencillos despues de la meta (Beat 4 del Taller 5)

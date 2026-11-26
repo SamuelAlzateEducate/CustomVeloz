@@ -52,6 +52,12 @@ var kmh = 0.0 # rapidez máxima del estado actual
 @onready var modelo_nodo: Node3D = get_node_or_null("Modelo")
 @onready var anim = get_node_or_null("Modelo/AnimationPlayer")
 
+# ---- Sistema de Armas (Cohete) ----
+# (sin preload: se carga en runtime para evitar parse errors al arrancar)
+var cohetes_cargados := 0          # cuántos cohetes tiene el jugador (máx 3)
+var _cohete_montado: Node3D = null # nodo visual del cohete en el techo
+var _snd_equipado: AudioStreamPlayer = null
+
 var rueda_del_izq: Node3D = null # wheels_019
 var rueda_del_der: Node3D = null # wheels_040
 var rueda_tras_izq: Node3D = null # wheels_018
@@ -132,6 +138,7 @@ func _buscar_ruedas() -> void:
 
 func _physics_process(delta):
 	_actualizar_mejoras(delta)
+	_actualizar_cohete(delta)
 	# Gravedad: en el aire cae más rápido (arcade) para que el carro no flote
 	var factor_gravedad = 1.0 if is_on_floor() else gravedad_en_aire
 	velocity += get_gravity() * factor_gravedad * delta
@@ -554,6 +561,100 @@ func animar():
 func _reproducir(nombre):
 	if anim and anim.has_animation(nombre):
 		anim.play(nombre)
+
+# ================================================================
+# SISTEMA DE COHETE
+# ================================================================
+
+## Llamado desde pista.gd (_on_esfera_cohete) cuando el jugador recoge
+## una esfera roja de combate. Puede almacenar hasta 3 cohetes.
+func recoger_cohete() -> void:
+	if cohetes_cargados >= 3:
+		return
+	cohetes_cargados += 1
+	_montar_cohete_visual()
+	_sonido_equipado()
+	print("[cohete] recogido – cargados: ", cohetes_cargados)
+
+## Llamado por _actualizar_cohete cada frame; gestiona la tecla E.
+func _actualizar_cohete(_delta: float) -> void:
+	if Input.is_action_just_pressed("disparar_cohete"):
+		_disparar_cohete()
+
+func _disparar_cohete() -> void:
+	if cohetes_cargados <= 0:
+		return
+	cohetes_cargados -= 1
+
+	# Crear proyectil en la posición frontal del carro
+	var cohete_scn = load("res://proyectil_cohete.tscn")
+	if cohete_scn == null:
+		push_error("[cohete] No se pudo cargar proyectil_cohete.tscn")
+		return
+	var p = cohete_scn.instantiate()
+	p.inicializar(self)
+	get_tree().root.add_child(p)
+
+	# Posicionar en el morro/techo, apuntando hacia adelante del carro
+	p.global_transform = global_transform
+	p.global_position = global_position + (-global_transform.basis.z * 2.2) + Vector3(0, 0.9, 0)
+
+	# Sonido de disparo (en el mundo para que tenga atenuación espacial)
+	var snd_path := "res://Sonidos_Armas/cohete_disparo.mp3"
+	if ResourceLoader.exists(snd_path):
+		var snd := AudioStreamPlayer3D.new()
+		snd.stream = load(snd_path)
+		snd.volume_db = 2.0
+		snd.max_distance = 60.0
+		get_tree().root.add_child(snd)
+		snd.global_position = global_position
+		snd.play()
+		snd.finished.connect(snd.queue_free)
+
+	# Actualizar o quitar el cohete montado en el techo
+	if cohetes_cargados <= 0:
+		_desmontar_cohete_visual()
+	print("[cohete] ¡DISPARADO! restantes: ", cohetes_cargados)
+
+## Montar el modelo visual del cohete sobre el techo del carro.
+## Solo muestra un cohete (el primero); si ya hay uno montado no duplica.
+func _montar_cohete_visual() -> void:
+	if is_instance_valid(_cohete_montado):
+		return # ya hay uno visible
+	var path := "res://Modelos_Armas/cohete.glb"
+	if not ResourceLoader.exists(path):
+		return
+	var scn = load(path)
+	if scn == null:
+		return
+	_cohete_montado = scn.instantiate()
+	add_child(_cohete_montado)
+	# El GLB ya tiene los nodos internos posicionados en Blender:
+	#   Cohete -> Y=1.575, Z=-0.3 (techo del carro, levemente hacia el centro)
+	#   Soporte_Techo -> Y=1.425, Z=-0.3
+	# Colocamos el raíz en el origen del Personaje y rotamos 180° en Y para que apunte hacia -Z (adelante).
+	_cohete_montado.position = Vector3(0.0, 0.0, 0.0)
+	_cohete_montado.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+	print("[cohete] modelo montado en el techo")
+
+func _desmontar_cohete_visual() -> void:
+	if is_instance_valid(_cohete_montado):
+		_cohete_montado.queue_free()
+		_cohete_montado = null
+
+func _sonido_equipado() -> void:
+	var snd_path := "res://Sonidos_Armas/cohete_equipado.mp3"
+	if not ResourceLoader.exists(snd_path):
+		return
+	if is_instance_valid(_snd_equipado):
+		_snd_equipado.stop()
+		_snd_equipado.queue_free()
+	_snd_equipado = AudioStreamPlayer.new()
+	_snd_equipado.stream = load(snd_path)
+	_snd_equipado.volume_db = -8.0
+	add_child(_snd_equipado)
+	_snd_equipado.play()
+	_snd_equipado.finished.connect(_snd_equipado.queue_free)
 
 # ---------------- Prueba automática ----------------
 var _cuadro = 0

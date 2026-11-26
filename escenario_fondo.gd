@@ -41,6 +41,8 @@ func _construir_elementos_pista() -> void:
 	if _pista and "centro" in _pista and _pista.centro.size() > 0:
 		_construir_pilares()
 		_construir_portico_meta()
+		_construir_lowcity()
+		_construir_publico()
 
 func _distancia_a_pista_2d(pos: Vector2) -> float:
 	if not _pista or not ("centro" in _pista) or _pista.centro.is_empty():
@@ -340,3 +342,320 @@ func _construir_portico_meta() -> void:
 
 	add_child(_crear_malla(v_m, n_m, mat_metal))
 	add_child(_crear_malla(v_n, n_n, mat_neon))
+
+# ------------------------------------------------------------------ 5. Low-City (Edificios, Skyline, Farolas, Gruas)
+func _construir_lowcity() -> void:
+	var escena_a: PackedScene = load("res://Modelos_Escenario/edificio_a.glb")
+	var escena_b: PackedScene = load("res://Modelos_Escenario/edificio_b.glb")
+	var escena_c: PackedScene = load("res://Modelos_Escenario/edificio_c.glb")
+	var escena_grua: PackedScene = load("res://Modelos_Escenario/grua_torre.glb")
+	var escena_farola: PackedScene = load("res://Modelos_Escenario/farola_urbana.glb")
+
+	var mesh_a := _obtener_mesh_de_escena(escena_a)
+	var mesh_b := _obtener_mesh_de_escena(escena_b)
+	var mesh_c := _obtener_mesh_de_escena(escena_c)
+	var mesh_grua := _obtener_mesh_de_escena(escena_grua)
+	var mesh_farola := _obtener_mesh_de_escena(escena_farola)
+
+	var largo_pista: float = _pista.largo if "largo" in _pista else 1500.0
+	var mitad_pista: float = (_pista.ancho * 0.5) if "ancho" in _pista else 7.0
+	var s_meta: float = _pista.s_meta if "s_meta" in _pista else 0.0
+
+	# 1. FAROLAS URBANAS (a lo largo de las barandas, paso ~28m)
+	if mesh_farola:
+		var paso_f := 28.0
+		var n_farolas := int(floor(largo_pista / paso_f))
+		var mm_farola := MultiMesh.new()
+		mm_farola.transform_format = MultiMesh.TRANSFORM_3D
+		mm_farola.mesh = mesh_farola
+		mm_farola.instance_count = n_farolas
+
+		for i in range(n_farolas):
+			var s := float(i) * paso_f
+			var p: Vector3 = _pista.pos_en(s)
+			var der: Vector3 = _pista.der_en(s)
+			var lado: float = 1.0 if (i % 2 == 0) else -1.0
+			var pos_f: Vector3 = p + der * ((mitad_pista + 0.8) * lado)
+			var hacia_pista: Vector3 = (p - pos_f).normalized()
+
+			var t := Transform3D()
+			t.basis.x = hacia_pista
+			t.basis.y = Vector3.UP
+			t.basis.z = hacia_pista.cross(Vector3.UP).normalized()
+			t.origin = pos_f
+			mm_farola.set_instance_transform(i, t)
+
+		var mmi_f := MultiMeshInstance3D.new()
+		mmi_f.name = "FarolasMultiMesh"
+		mmi_f.multimesh = mm_farola
+		add_child(mmi_f)
+
+	# 2. EDIFICIOS MEDIOS (Edificio A y Edificio B flanqueando el circuito)
+	var paso_edif := 34.0
+	var n_pasos := int(floor(largo_pista / paso_edif))
+	
+	var transforms_a: Array[Transform3D] = []
+	var transforms_b: Array[Transform3D] = []
+
+	for i in range(n_pasos):
+		var s := float(i) * paso_edif
+		var p: Vector3 = _pista.pos_en(s)
+		var der: Vector3 = _pista.der_en(s)
+
+		# Colocar edificios en ambos lados con variaciones
+		for lado in [-1.0, 1.0]:
+			var seed_val := float(i * 3 + int(lado * 2.0) + 17)
+			var r1 := fposmod(sin(seed_val * 12.9898) * 43758.5453, 1.0)
+			var r2 := fposmod(sin((seed_val + 3.1) * 78.233) * 21345.1234, 1.0)
+
+			var dist: float = 16.0 + r1 * 10.0
+			var pos_ed: Vector3 = p + der * (dist * lado)
+			pos_ed.y = minf(p.y - 0.2, altura_suelo_base)
+
+			var hacia_p: Vector3 = (p - pos_ed)
+			hacia_p.y = 0.0
+			hacia_p = hacia_p.normalized()
+
+			var escala_y := 0.85 + r2 * 0.5
+			var escala_xz := 0.9 + r1 * 0.25
+
+			var basis_e := Basis.looking_at(-hacia_p, Vector3.UP)
+			basis_e = basis_e.scaled(Vector3(escala_xz, escala_y, escala_xz))
+			var t := Transform3D(basis_e, pos_ed)
+
+			if int(seed_val) % 2 == 0:
+				transforms_a.append(t)
+			else:
+				transforms_b.append(t)
+
+	if mesh_a and transforms_a.size() > 0:
+		var mm_a := MultiMesh.new()
+		mm_a.transform_format = MultiMesh.TRANSFORM_3D
+		mm_a.mesh = mesh_a
+		mm_a.instance_count = transforms_a.size()
+		for i in range(transforms_a.size()):
+			mm_a.set_instance_transform(i, transforms_a[i])
+		var mmi_a := MultiMeshInstance3D.new()
+		mmi_a.name = "EdificiosA_MultiMesh"
+		mmi_a.multimesh = mm_a
+		add_child(mmi_a)
+
+	if mesh_b and transforms_b.size() > 0:
+		var mm_b := MultiMesh.new()
+		mm_b.transform_format = MultiMesh.TRANSFORM_3D
+		mm_b.mesh = mesh_b
+		mm_b.instance_count = transforms_b.size()
+		for i in range(transforms_b.size()):
+			mm_b.set_instance_transform(i, transforms_b[i])
+		var mmi_b := MultiMeshInstance3D.new()
+		mmi_b.name = "EdificiosB_MultiMesh"
+		mmi_b.multimesh = mm_b
+		add_child(mmi_b)
+
+	# 3. RASCACIELOS DE FONDO / SKYLINE (Edificio C - torres monumentales)
+	if mesh_c:
+		var paso_c := 60.0
+		var n_c := int(floor(largo_pista / paso_c))
+		var transforms_c: Array[Transform3D] = []
+
+		for i in range(n_c):
+			var s := float(i) * paso_c + 12.0
+			var p: Vector3 = _pista.pos_en(s)
+			var der: Vector3 = _pista.der_en(s)
+			var lado := 1.0 if (i % 2 == 0) else -1.0
+			var r := fposmod(sin(float(i) * 37.123) * 65432.1, 1.0)
+
+			var dist: float = 50.0 + r * 45.0
+			var pos_c: Vector3 = p + der * (dist * lado)
+			pos_c.y = altura_suelo_base
+
+			var escala_y := 1.2 + r * 1.4
+			var escala_xz := 1.1 + r * 0.4
+
+			var rot_y := r * TAU
+			var basis_c := Basis(Vector3.UP, rot_y)
+			basis_c = basis_c.scaled(Vector3(escala_xz, escala_y, escala_xz))
+			transforms_c.append(Transform3D(basis_c, pos_c))
+
+		if transforms_c.size() > 0:
+			var mm_c := MultiMesh.new()
+			mm_c.transform_format = MultiMesh.TRANSFORM_3D
+			mm_c.mesh = mesh_c
+			mm_c.instance_count = transforms_c.size()
+			for i in range(transforms_c.size()):
+				mm_c.set_instance_transform(i, transforms_c[i])
+			var mmi_c := MultiMeshInstance3D.new()
+			mmi_c.name = "Skyline_MultiMesh"
+			mmi_c.multimesh = mm_c
+			add_child(mmi_c)
+
+	# 4. GRUAS TORRE (gruas en construccion con luces amarillas en el horizonte)
+	if mesh_grua:
+		var mm_grua := MultiMesh.new()
+		mm_grua.transform_format = MultiMesh.TRANSFORM_3D
+		mm_grua.mesh = mesh_grua
+		mm_grua.instance_count = 4
+
+		var puntos_grua: Array[float] = [
+			s_meta + 80.0,
+			s_meta + 450.0,
+			s_meta + 850.0,
+			s_meta + 1250.0
+		]
+		for g in range(4):
+			var s := puntos_grua[g]
+			var p: Vector3 = _pista.pos_en(s)
+			var der: Vector3 = _pista.der_en(s)
+			var lado := 1.0 if (g % 2 == 0) else -1.0
+			var pos_g: Vector3 = p + der * ((45.0 + float(g) * 8.0) * lado)
+			pos_g.y = altura_suelo_base
+
+			var rot_y := float(g) * 1.6 + 0.5
+			var basis_g := Basis(Vector3.UP, rot_y).scaled(Vector3(1.3, 1.4, 1.3))
+			mm_grua.set_instance_transform(g, Transform3D(basis_g, pos_g))
+
+		var mmi_grua := MultiMeshInstance3D.new()
+		mmi_grua.name = "GruasTorre_MultiMesh"
+		mmi_grua.multimesh = mm_grua
+		add_child(mmi_grua)
+
+	# 5. LETREROS NEON CUSTOMVELOZ
+	_crear_letrero_neon(s_meta + 25.0, -18.0, 7.5)
+	_crear_letrero_neon(s_meta + 300.0, 20.0, 9.0)
+	_crear_letrero_neon(s_meta + 700.0, -22.0, 8.0)
+
+func _crear_letrero_neon(s: float, lado_dist: float, altura: float) -> void:
+	if not _pista:
+		return
+	var p: Vector3 = _pista.pos_en(s)
+	var der: Vector3 = _pista.der_en(s)
+	var pos: Vector3 = p + der * lado_dist + Vector3(0, altura, 0)
+
+	var hacia_pista: Vector3 = (p - pos)
+	hacia_pista.y = 0.0
+	hacia_pista = hacia_pista.normalized()
+
+	var lbl := Label3D.new()
+	lbl.text = "CUSTOMVELOZ"
+	lbl.font_size = 54
+	lbl.modulate = C_NEON_AZUL
+	lbl.outline_modulate = Color(0.0, 0.3, 0.4)
+	lbl.outline_size = 8
+	lbl.position = pos
+	lbl.basis = Basis.looking_at(-hacia_pista, Vector3.UP)
+	add_child(lbl)
+
+# ------------------------------------------------------------------ 6. Público Animado (MultiMesh Low-Poly)
+var _publico_salto: MultiMeshInstance3D
+var _publico_arriba: MultiMeshInstance3D
+var _tiempo_publico := 0.0
+
+func _construir_publico() -> void:
+	var esc_arriba: PackedScene = load("res://Modelos_Escenario/espectador_brazos_arriba.glb")
+	var esc_aplauso: PackedScene = load("res://Modelos_Escenario/espectador_aplaudiendo.glb")
+	var esc_mira: PackedScene = load("res://Modelos_Escenario/espectador_mirando.glb")
+	var esc_salto: PackedScene = load("res://Modelos_Escenario/espectador_saltando.glb")
+
+	var m_arriba := _obtener_mesh_de_escena(esc_arriba)
+	var m_aplauso := _obtener_mesh_de_escena(esc_aplauso)
+	var m_mira := _obtener_mesh_de_escena(esc_mira)
+	var m_salto := _obtener_mesh_de_escena(esc_salto)
+
+	if not (m_arriba and m_aplauso and m_mira and m_salto):
+		return
+
+	var mms: Array[MultiMesh] = []
+	var mmis: Array[MultiMeshInstance3D] = []
+	var meshes: Array[Mesh] = [m_arriba, m_aplauso, m_mira, m_salto]
+
+	var cantidad_por_pose := 50
+	for idx in range(4):
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = meshes[idx]
+		mm.instance_count = cantidad_por_pose
+		mms.append(mm)
+
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Publico_Pose_%d" % idx
+		mmi.multimesh = mm
+		add_child(mmi)
+		mmis.append(mmi)
+
+	_publico_arriba = mmis[0]
+	_publico_salto = mmis[3]
+
+	var mitad_pista: float = (_pista.ancho * 0.5) if "ancho" in _pista else 7.0
+	var largo_pista: float = _pista.largo if "largo" in _pista else 1500.0
+	var s_meta: float = _pista.s_meta if "s_meta" in _pista else 0.0
+
+	var conteo := [0, 0, 0, 0]
+
+	# Distribucion de ~200 espectadores:
+	# 120 concentrados en la recta de meta (tribunas a ambos lados)
+	# 80 distribuidos en curvas clave
+	var puntos_s: Array[float] = []
+	# Recta meta
+	for i in range(60):
+		var offset_s := (float(i) - 30.0) * 3.5
+		puntos_s.append(s_meta + offset_s)
+		puntos_s.append(s_meta + offset_s)
+
+	# Curvas
+	for c in [0.25, 0.45, 0.70, 0.85]:
+		for i in range(10):
+			puntos_s.append(largo_pista * c + float(i) * 3.0)
+			puntos_s.append(largo_pista * c + float(i) * 3.0)
+
+	var total_puntos := puntos_s.size()
+	for i in range(total_puntos):
+		var pose_idx := i % 4
+		if conteo[pose_idx] >= cantidad_por_pose:
+			continue
+
+		var s: float = puntos_s[i]
+		var p: Vector3 = _pista.pos_en(s)
+		var der: Vector3 = _pista.der_en(s)
+		var lado := 1.0 if (i % 2 == 0) else -1.0
+
+		var r_dist: float = fposmod(sin(float(i) * 19.123) * 31415.9, 1.0)
+		var dist: float = mitad_pista + 1.2 + r_dist * 1.8
+		var pos_esp: Vector3 = p + der * (dist * lado)
+		pos_esp.y = p.y
+
+		var hacia_p: Vector3 = (p - pos_esp)
+		hacia_p.y = 0.0
+		hacia_p = hacia_p.normalized()
+
+		# Variacion sutil de rotacion para naturalidad
+		var ang_var := (r_dist - 0.5) * 0.4
+		var basis_esp := Basis.looking_at(-hacia_p, Vector3.UP).rotated(Vector3.UP, ang_var)
+		var t := Transform3D(basis_esp, pos_esp)
+
+		mms[pose_idx].set_instance_transform(conteo[pose_idx], t)
+		conteo[pose_idx] += 1
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	_tiempo_publico += delta
+	if _publico_salto:
+		_publico_salto.position.y = sin(_tiempo_publico * 5.2) * 0.09
+	if _publico_arriba:
+		_publico_arriba.position.y = sin(_tiempo_publico * 4.4 + 1.0) * 0.07
+
+static func _obtener_mesh_de_escena(escena: PackedScene) -> Mesh:
+	if not escena:
+		return null
+	var inst: Node = escena.instantiate()
+	var mesh: Mesh = null
+	var stack: Array[Node] = [inst]
+	while not stack.is_empty():
+		var actual = stack.pop_back()
+		if actual is MeshInstance3D and actual.mesh:
+			mesh = actual.mesh
+			break
+		for c in actual.get_children():
+			stack.append(c)
+	inst.queue_free()
+	return mesh

@@ -26,6 +26,7 @@ var reloj_lento = 0.0
 var jugador: Node3D = null
 
 func _ready():
+	add_to_group("rival")
 	floor_snap_length = 3.0
 	floor_constant_speed = true
 	jugador = get_tree().get_first_node_in_group("jugador")

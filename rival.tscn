@@ -6,9 +6,10 @@
 [sub_resource type="BoxShape3D" id="CarroRivalForma"]
 size = Vector3(1.85, 1.4, 3.9)
 
-[node name="Rival" type="CharacterBody3D"]
+[node name="Rival" type="CharacterBody3D" groups=["rival"]]
 floor_constant_speed = true
 floor_snap_length = 0.4
+collision_layer = 8
 script = ExtResource("1_rival")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
