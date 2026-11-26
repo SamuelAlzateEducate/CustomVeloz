@@ -92,7 +92,10 @@ var sonido_derrape: AudioStreamPlayer = null
 
 func _ready():
 	floor_snap_length = pegado_al_suelo
-	collision_mask = 3 | 8 # capa 1 (pista y carros) + capa 2 (conos) + capa 8 (rivales)
+	# Capa 1 (pista, muros y carros) + Capa 8 (rivales).
+	# Nota: Los conos están en capa 2 y se detectan por Area3D dinámica,
+	# evitando que move_and_slide frene el auto bruscamente o altere el motor.
+	collision_mask = 1 | 8
 	floor_constant_speed = true # misma rapidez en subida y bajada
 	if camara == null:
 		camara = get_viewport().get_camera_3d()

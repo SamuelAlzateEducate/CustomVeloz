@@ -3,7 +3,9 @@ extends RigidBody3D
 
 ## ConoObstaculo - Cono de tráfico dinámico con física realista
 ## Reacciona al impacto de los carros volando y rodando por la pista
-## en lugar de comportarse como una pared fija de concreto.
+## sin frenar en seco el carro ni causar caídas bruscas en las RPM del motor.
+
+const SND_IMPACTO := preload("res://Sonidos_Carros/CarroRally_Personaje/impacto_cono.wav")
 
 var fue_golpeado := false
 var _cooldown_sonido := 0.0
@@ -16,10 +18,29 @@ func _ready() -> void:
 	contact_monitor = true
 	max_contacts_reported = 4
 	body_entered.connect(_on_body_entered)
+	
+	# Detector de impacto mediante Area3D para registrar el paso del carro
+	# sin que move_and_slide lo detenga como un muro de concreto
+	var detector := Area3D.new()
+	detector.name = "DetectorCarro"
+	detector.collision_layer = 0
+	detector.collision_mask = 1 # Detecta carros en capa 1 (jugador y rivales)
+	var col_shape := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 0.55
+	cyl.height = 0.85
+	col_shape.shape = cyl
+	detector.add_child(col_shape)
+	add_child(detector)
+	detector.body_entered.connect(_on_detector_body_entered)
 
 func _physics_process(delta: float) -> void:
 	if _cooldown_sonido > 0.0:
 		_cooldown_sonido = maxf(0.0, _cooldown_sonido - delta)
+
+func _on_detector_body_entered(body: Node) -> void:
+	if body.is_in_group("jugador") or body.is_in_group("rival"):
+		al_chocar(body)
 
 func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("jugador") or body.is_in_group("rival"):
@@ -38,29 +59,24 @@ func al_chocar(carro: Node) -> void:
 	if not fue_golpeado:
 		fue_golpeado = true
 		_reproducir_sonido()
-		# Penalización ligera y realista al carro (resistencia leve al impacto, ~8%)
-		if "rapidez_actual" in carro:
-			carro.rapidez_actual = maxf(carro.rapidez_actual * 0.92, 0.0)
 	elif _cooldown_sonido <= 0.0:
 		_reproducir_sonido()
 	
-	_cooldown_sonido = 0.35
+	_cooldown_sonido = 0.30
 	
 	# Impulso físico espectacular en la dirección del impacto con elevación y volteo
-	var impulso := dir * maxf(speed * 0.85, 12.0) + Vector3(randf_range(-1.5, 1.5), randf_range(3.5, 6.5), randf_range(-1.5, 1.5))
+	var impulso := dir * maxf(speed * 0.9, 14.0) + Vector3(randf_range(-1.5, 1.5), randf_range(4.0, 7.0), randf_range(-1.5, 1.5))
 	apply_central_impulse(impulso)
 	var torque := Vector3(randf_range(-14.0, 14.0), randf_range(-18.0, 18.0), randf_range(-14.0, 14.0))
 	apply_torque_impulse(torque)
 
 func _reproducir_sonido() -> void:
-	var snd_path := "res://Sonidos_Carros/CarroRally_Personaje/pop_als_1.wav"
-	if ResourceLoader.exists(snd_path):
-		var p := AudioStreamPlayer3D.new()
-		p.stream = load(snd_path)
-		p.pitch_scale = randf_range(1.4, 1.8) # Tono plástico agudo característico
-		p.volume_db = 2.0
-		p.max_distance = 50.0
-		get_tree().root.add_child(p)
-		p.global_position = global_position
-		p.play()
-		p.finished.connect(p.queue_free)
+	var p := AudioStreamPlayer3D.new()
+	p.stream = SND_IMPACTO
+	p.pitch_scale = randf_range(0.96, 1.12) # Tono plástico limpio y natural
+	p.volume_db = -2.0 # Volumen equilibrado y agradable
+	p.max_distance = 45.0
+	get_tree().root.add_child(p)
+	p.global_position = global_position
+	p.play()
+	p.finished.connect(p.queue_free)
