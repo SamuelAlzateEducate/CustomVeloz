@@ -194,6 +194,10 @@ func _process(_delta: float) -> void:
 				l_aleron.text = ""
 		else:
 			l_aleron.text = ""
+		if "cohetes_cargados" in jugador and jugador.cohetes_cargados > 0:
+			l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo   [E] MISIL x%d" % jugador.cohetes_cargados
+		else:
+			l_ayuda.text = "[R] Reiniciar   [ESPACIO] Derrapar   [SHIFT] Turbo"
 	if pista:
 		l_cuenta.text = pista.texto_cuenta
 		l_cuenta.add_theme_color_override("font_color", C_UI if pista.en_cuenta else Color("#76FF03"))

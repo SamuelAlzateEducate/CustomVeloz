@@ -54,7 +54,7 @@ var kmh = 0.0 # rapidez máxima del estado actual
 
 # ---- Sistema de Armas (Cohete) ----
 # (sin preload: se carga en runtime para evitar parse errors al arrancar)
-var cohetes_cargados := 0          # cuántos cohetes tiene el jugador (máx 3)
+var cohetes_cargados := 1          # 1 cohete inicial para probar de inmediato (máx 3)
 var _cohete_montado: Node3D = null # nodo visual del cohete en el techo
 var _snd_equipado: AudioStreamPlayer = null
 
@@ -85,6 +85,8 @@ func _ready():
 	
 	_buscar_ruedas()
 	_inicializar_sonido_derrape()
+	if cohetes_cargados > 0:
+		call_deferred("_montar_cohete_visual")
 	
 	if prueba != "Ninguna":
 		_aplicar_prueba(1)

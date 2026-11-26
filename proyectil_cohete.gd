@@ -9,15 +9,17 @@ extends Area3D
 ##   - Se autodestruye tras 4 s si no golpea nada
 
 const VELOCIDAD := 75.0          # m/s de vuelo
-const GUIADO_FUERZA := 2.5       # rad/s máximos de guiado lateral
+const GUIADO_FUERZA := 5.2       # rad/s de guiado fluido hacia el rival
 const VIDA_MAX := 4.0            # segundos hasta autodestrucción
-const RADIO_GUIADO := 40.0       # metros de búsqueda de rival
+const RADIO_GUIADO := 90.0       # metros de alcance frontal para fijar objetivo
 
 var _vida := 0.0
 var _disparador: Node3D = null   # referencia al Personaje que disparó
 var _modelo: Node3D = null
 var _snd_vuelo: AudioStreamPlayer3D = null
 var _impactado := false
+var _busqueda_inicial_hecha := false
+var _objetivo: Node3D = null
 
 func _ready() -> void:
 	# Importar el modelo 3D del cohete
@@ -36,7 +38,7 @@ func _ready() -> void:
 			var nodo_cohete = _modelo.get_node_or_null("Cohete")
 			if nodo_cohete:
 				nodo_cohete.position = Vector3.ZERO
-				nodo_cohete.rotation_degrees = Vector3.ZERO
+				nodo_cohete.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 
 	# Colisión: cápsula orientada al eje Z del proyectil
 	var cs := CollisionShape3D.new()
@@ -81,34 +83,58 @@ func _physics_process(delta: float) -> void:
 		_detonar(false)
 		return
 
-	# Guiado suave hacia el rival más cercano que esté adelante del proyectil
-	var rival_dir := _buscar_rival()
-	if rival_dir.length_squared() > 0.001:
-		var angulo_max := GUIADO_FUERZA * delta
-		var local := to_local(global_position + rival_dir)
-		var giro_y := clampf(-local.x * 0.08, -angulo_max, angulo_max)
-		rotate_y(giro_y)
+	# Buscar objetivo en los primeros fotogramas: SOLO si hay rival adelante
+	if not _busqueda_inicial_hecha:
+		_busqueda_inicial_hecha = true
+		_objetivo = _buscar_rival_frontal()
+
+	# Guiado teledirigido SOLO si hay un enemigo fijado al frente
+	if is_instance_valid(_objetivo):
+		var target_pos: Vector3 = _objetivo.global_position + Vector3(0.0, 0.6, 0.0)
+		var diff: Vector3 = target_pos - global_position
+		var dir: Vector3 = diff.normalized()
+		var fwd: Vector3 = -global_transform.basis.z
+
+		# Si el rival ya quedó atrás del misil, romper el fijado
+		if fwd.dot(dir) < 0.15:
+			_objetivo = null
+		else:
+			# Rotación suave tridimensional hacia el objetivo
+			var nuevo_fwd: Vector3 = fwd.slerp(dir, GUIADO_FUERZA * delta).normalized()
+			var up: Vector3 = Vector3.UP
+			var side: Vector3 = nuevo_fwd.cross(up)
+			if side.length_squared() > 0.0001:
+				side = side.normalized()
+				up = side.cross(nuevo_fwd).normalized()
+				global_transform.basis = Basis(side, up, -nuevo_fwd)
 
 	# Mover hacia adelante (-Z en Godot)
 	global_position += -global_transform.basis.z * VELOCIDAD * delta
 
-func _buscar_rival() -> Vector3:
-	# Encontrar el primer rival que esté adelante del proyectil (dentro del cono frontal)
+func _buscar_rival_frontal() -> Node3D:
+	var fwd: Vector3 = -global_transform.basis.z
 	var mejor_dist := RADIO_GUIADO
-	var dir_obj := Vector3.ZERO
+	var mejor_rival: Node3D = null
+
 	for rival in get_tree().get_nodes_in_group("rival"):
-		if not rival is Node3D:
+		if not rival is Node3D or rival == _disparador:
 			continue
 		var diff: Vector3 = rival.global_position - global_position
-		# Solo guiamos si está adelante (producto punto positivo con -Z del misil)
-		var adelante := -global_transform.basis.z
-		if diff.normalized().dot(adelante) < 0.3:
-			continue
 		var dist := diff.length()
-		if dist < mejor_dist:
+		if dist > mejor_dist:
+			continue
+		# Solo se considera "al frente" si está dentro del cono frontal (~60 grados: dot >= 0.45)
+		var dir := diff.normalized()
+		if fwd.dot(dir) >= 0.45:
 			mejor_dist = dist
-			dir_obj = diff.normalized()
-	return dir_obj
+			mejor_rival = rival as Node3D
+
+	if mejor_rival:
+		print("[cohete] ¡ENEMIGO AL FRENTE! Misil teledirigido fijado a: ", mejor_rival.name, " a ", snappedf(mejor_dist, 0.1), " m")
+	else:
+		print("[cohete] Sin enemigos al frente: Disparo recto directo")
+
+	return mejor_rival
 
 func _on_cuerpo_entrado(body: Node) -> void:
 	if _impactado:
@@ -143,43 +169,61 @@ func _detonar(con_boom: bool) -> void:
 	queue_free()
 
 func _explosion_visual() -> void:
-	# Destellos de partículas de la explosión (naranja, rojo, cian)
+	# 1. Onda expansiva esférica/anular naranja fuego (#FF5722)
+	var onda := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.3
+	tm.outer_radius = 0.7
+	var mat_onda := StandardMaterial3D.new()
+	mat_onda.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat_onda.albedo_color = Color(1.0, 0.35, 0.0)
+	mat_onda.emission_enabled = true
+	mat_onda.emission = Color(1.0, 0.35, 0.0)
+	mat_onda.emission_energy_multiplier = 6.0
+	onda.mesh = tm
+	get_tree().root.add_child(onda)
+	onda.global_position = global_position
+	var tw_onda := onda.create_tween()
+	tw_onda.tween_property(onda, "scale", Vector3(8.0, 1.0, 8.0), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw_onda.parallel().tween_property(mat_onda, "albedo_color:a", 0.0, 0.4)
+	tw_onda.tween_callback(onda.queue_free)
+
+	# 2. Destellos de partículas de la explosión (naranja fuego, humo denso, chispas cian)
 	for i in 3:
 		var p := CPUParticles3D.new()
 		p.local_coords = false
 		p.one_shot = true
-		p.explosiveness = 0.9
-		p.amount = [32, 20, 16][i]
-		p.lifetime = [0.6, 0.4, 0.8][i]
+		p.explosiveness = 0.95
+		p.amount = [36, 24, 20][i]
+		p.lifetime = [0.65, 0.45, 0.85][i]
 		p.randomness = 0.5
 		p.direction = Vector3.UP
 		p.spread = 180.0
-		p.gravity = Vector3(0.0, -6.0, 0.0)
-		p.initial_velocity_min = [8.0, 12.0, 4.0][i]
-		p.initial_velocity_max = [22.0, 28.0, 10.0][i]
-		p.scale_amount_min = [0.08, 0.06, 0.12][i]
-		p.scale_amount_max = [0.22, 0.14, 0.30][i]
+		p.gravity = Vector3(0.0, -6.5, 0.0)
+		p.initial_velocity_min = [10.0, 14.0, 5.0][i]
+		p.initial_velocity_max = [26.0, 30.0, 12.0][i]
+		p.scale_amount_min = [0.10, 0.07, 0.14][i]
+		p.scale_amount_max = [0.26, 0.16, 0.35][i]
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.albedo_color = [Color(1.0, 0.35, 0.0), Color(1.0, 0.1, 0.0), Color(0.0, 0.9, 1.0)][i]
 		mat.emission_enabled = true
 		mat.emission = mat.albedo_color
-		mat.emission_energy_multiplier = [5.0, 4.0, 6.0][i]
+		mat.emission_energy_multiplier = [5.5, 4.5, 6.5][i]
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.18, 0.18)
+		quad.size = Vector2(0.20, 0.20)
 		quad.material = mat
 		p.mesh = quad
 		get_tree().root.add_child(p)
 		p.global_position = global_position
 		p.emitting = true
-		# Autolimpiar
 		get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
 
-	# Luz puntual de flash de explosión
+	# 3. Luz puntual de flash de explosión
 	var luz := OmniLight3D.new()
-	luz.omni_range = 12.0
+	luz.omni_range = 15.0
 	luz.light_color = Color(1.0, 0.5, 0.1)
-	luz.light_energy = 10.0
+	luz.light_energy = 12.0
 	get_tree().root.add_child(luz)
 	luz.global_position = global_position
 	var tw := luz.create_tween()
