@@ -59,6 +59,17 @@ func al_chocar(carro: Node) -> void:
 	if not fue_golpeado:
 		fue_golpeado = true
 		_reproducir_sonido()
+		
+		# Penalización ligera ("un tris": 0.8 m/s ≈ 2.9 km/h por cono).
+		# Chocar contra 1 cono apenas se siente; chocar contra 3 en fila acumula ~8.7 km/h de pérdida.
+		var perdida_ms: float = 0.8
+		if "rapidez_actual" in carro:
+			if carro.rapidez_actual > 0.0:
+				carro.rapidez_actual = maxf(carro.rapidez_actual - perdida_ms, 0.0)
+			elif carro.rapidez_actual < 0.0:
+				carro.rapidez_actual = minf(carro.rapidez_actual + perdida_ms, 0.0)
+		elif "velocidad_actual" in carro:
+			carro.velocidad_actual = maxf(carro.velocidad_actual - perdida_ms, 0.0)
 	elif _cooldown_sonido <= 0.0:
 		_reproducir_sonido()
 	
